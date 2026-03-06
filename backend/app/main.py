@@ -11,6 +11,7 @@ from app.api.auth import router as auth_router
 from app.api.fraud_intelligence import router as fraud_intelligence_router
 from app.api.behavior import router as behavior_router
 from app.api.customer_risk import router as customer_risk_router
+from app.api.device_risk import router as device_risk_router
 
 from app.database import engine
 from app.models.base import Base
@@ -19,11 +20,11 @@ from app.models.base import Base
 app = FastAPI(title="DisputeGuard AI")
 
 
-# Create database tables automatically
+# Automatically create database tables
 Base.metadata.create_all(bind=engine)
 
 
-# Register API routes
+# Register API routers
 app.include_router(webhook_router, prefix="/webhooks")
 app.include_router(disputes_router)
 app.include_router(metrics_router)
@@ -35,6 +36,7 @@ app.include_router(auth_router)
 app.include_router(fraud_intelligence_router)
 app.include_router(behavior_router)
 app.include_router(customer_risk_router)
+app.include_router(device_risk_router)
 
 
 @app.get("/")

@@ -5,6 +5,7 @@ from app.api.disputes import router as disputes_router
 from app.api.metrics import router as metrics_router
 from app.api.fraud_signals import router as fraud_signals_router
 from app.api.simulate import router as simulate_router
+from app.api.dashboard import router as dashboard_router
 
 from app.database import engine
 from app.models.base import Base
@@ -13,8 +14,8 @@ from app.models.base import Base
 app = FastAPI(title="DisputeGuard AI")
 
 
-# Automatically create database tables
-
+# Create database tables automatically
+Base.metadata.create_all(bind=engine)
 
 
 # Register API routes
@@ -23,6 +24,7 @@ app.include_router(disputes_router)
 app.include_router(metrics_router)
 app.include_router(fraud_signals_router)
 app.include_router(simulate_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/")

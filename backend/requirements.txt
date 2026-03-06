@@ -5,3 +5,4 @@ pydantic
 python-dotenv
 stripe
 alembic
+scikit-learn

@@ -7,11 +7,12 @@ from app.services.ai_dispute_response import generate_dispute_response
 from app.services.dispute_response_service import store_dispute_response
 
 
-def create_dispute(db: Session, stripe_event: dict):
+def create_dispute(db: Session, stripe_event: dict, merchant_id: int):
 
     data = stripe_event.get("data", {}).get("object", {})
 
     dispute = Dispute(
+        merchant_id=merchant_id,
         transaction_id=data.get("charge"),
         reason=data.get("reason", "unknown"),
         amount=data.get("amount", 0) / 100 if data.get("amount") else 0,
@@ -24,7 +25,7 @@ def create_dispute(db: Session, stripe_event: dict):
 
     evidence = generate_evidence(
         {"reason": dispute.reason},
-        {"id": dispute.transaction_id, "amount": dispute.amount}
+        {"transaction_id": dispute.transaction_id, "amount": dispute.amount}
     )
 
     store_evidence(db, dispute.id, str(evidence))

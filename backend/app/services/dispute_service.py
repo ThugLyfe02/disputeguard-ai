@@ -1,7 +1,10 @@
 from sqlalchemy.orm import Session
+
 from app.models.dispute import Dispute
 from app.services.evidence_generator import generate_evidence
 from app.services.evidence_service import store_evidence
+from app.services.ai_dispute_response import generate_dispute_response
+from app.services.dispute_response_service import store_dispute_response
 
 
 def create_dispute(db: Session, stripe_event: dict):
@@ -26,7 +29,15 @@ def create_dispute(db: Session, stripe_event: dict):
 
     store_evidence(db, dispute.id, str(evidence))
 
+    ai_response = generate_dispute_response(
+        {"reason": dispute.reason},
+        {"transaction_id": dispute.transaction_id, "amount": dispute.amount}
+    )
+
+    store_dispute_response(db, dispute.id, ai_response)
+
     return {
         "dispute_id": dispute.id,
-        "evidence": evidence
+        "evidence": evidence,
+        "ai_response": ai_response
     }

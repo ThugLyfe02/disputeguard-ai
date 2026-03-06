@@ -7,6 +7,7 @@ from app.api.fraud_signals import router as fraud_signals_router
 from app.api.simulate import router as simulate_router
 from app.api.dashboard import router as dashboard_router
 from app.api.predictions import router as predictions_router
+from app.api.auth import router as auth_router
 
 from app.database import engine
 from app.models.base import Base
@@ -27,6 +28,7 @@ app.include_router(fraud_signals_router)
 app.include_router(simulate_router)
 app.include_router(dashboard_router)
 app.include_router(predictions_router)
+app.include_router(auth_router)
 
 
 @app.get("/")

@@ -1,13 +1,14 @@
 from sqlalchemy import Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
+from app.models.base import Base
 
-Base = declarative_base()
 
 class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True)
-    merchant_id = Column(String)
+
+    merchant_id = Column(Integer)
+
     customer_id = Column(String)
     amount = Column(Float)
     currency = Column(String)

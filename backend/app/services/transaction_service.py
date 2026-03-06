@@ -3,11 +3,12 @@ from app.models.transaction import Transaction
 from app.services.fraud_signals import calculate_risk_score
 
 
-def create_transaction(db: Session, stripe_event: dict):
+def create_transaction(db: Session, stripe_event: dict, merchant_id: int):
+
     data = stripe_event.get("data", {}).get("object", {})
 
     transaction = Transaction(
-        merchant_id=data.get("merchant_id", "unknown"),
+        merchant_id=merchant_id,
         customer_id=data.get("customer", "unknown"),
         amount=data.get("amount", 0) / 100 if data.get("amount") else 0,
         currency=data.get("currency", "usd"),
@@ -18,8 +19,7 @@ def create_transaction(db: Session, stripe_event: dict):
     db.commit()
     db.refresh(transaction)
 
-    # Run fraud scoring
-    risk_score = calculate_risk_score(data)
+    risk_score = calculate_risk_score(db, data, transaction.id)
 
     return {
         "transaction_id": transaction.id,

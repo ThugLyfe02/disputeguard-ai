@@ -1,3 +1,4 @@
+import os
 import stripe
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -8,8 +9,8 @@ from app.services.dispute_service import create_dispute
 
 router = APIRouter()
 
-# Replace later with environment variable
-STRIPE_WEBHOOK_SECRET = "whsec_test_secret"
+# Load Stripe secret from environment
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 
 @router.post("/stripe")
@@ -29,7 +30,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     event_type = event["type"]
 
-    # Handle successful payments
     if event_type == "payment_intent.succeeded":
 
         result = create_transaction(db, event)
@@ -40,7 +40,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             "risk_score": result["risk_score"]
         }
 
-    # Handle chargebacks
     if event_type == "charge.dispute.created":
 
         result = create_dispute(db, event)

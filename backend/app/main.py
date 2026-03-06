@@ -14,7 +14,7 @@ app = FastAPI(title="DisputeGuard AI")
 
 
 # Automatically create database tables
-Base.metadata.create_all(bind=engine)
+
 
 
 # Register API routes

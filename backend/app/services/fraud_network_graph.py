@@ -34,8 +34,10 @@ Usage
 from __future__ import annotations
 
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any
+
+from app.services.temporal_graph import temporal_graph
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -151,6 +153,7 @@ class FraudNetworkGraph:
         with self._lock:
             self.graph[node_a].add(node_b)
             self.graph[node_b].add(node_a)
+            temporal_graph.add_edge(node_a, node_b)
 
     def get_neighbors(self, node: str) -> list[str]:
         """
@@ -362,13 +365,108 @@ class FraudNetworkGraph:
             len(merchant_nodes) / self.MAX_CLUSTER_MERCHANTS, 1.0
         )
 
+        # Signal 4: temporal velocity – burst connection activity
+        velocity = max(
+            (temporal_graph.connection_velocity(node, 120) for node in cluster),
+            default=0,
+        )
+        velocity_signal = min(velocity / 10, 1.0)
+
         score = (
             self.DISPUTE_RATIO_WEIGHT * dispute_ratio
             + self.DEVICE_REUSE_WEIGHT * device_reuse_signal
             + self.CROSS_MERCHANT_WEIGHT * cross_merchant_signal
+            + 0.15 * velocity_signal
         )
 
         return min(score, 1.0)
+
+    # ------------------------------------------------------------------
+    # Multi-hop traversal
+    # ------------------------------------------------------------------
+
+    def multi_hop_neighbors(self, start_node: str, depth: int = 2) -> list[str]:
+        """
+        Return all nodes reachable from *start_node* within *depth* hops.
+
+        Uses breadth-first traversal so that the result is ordered by
+        increasing distance from *start_node*.  The start node itself is
+        always included in the returned list.
+
+        The graph is not modified during traversal.
+
+        Parameters
+        ----------
+        start_node:
+            Prefixed node identifier to begin traversal from.
+        depth:
+            Maximum number of hops to traverse.  A depth of ``0`` returns
+            only *start_node*; a depth of ``1`` adds its direct neighbours;
+            and so on.
+
+        Returns
+        -------
+        list[str]
+            All node identifiers within *depth* hops of *start_node*,
+            including *start_node* itself.  Returns an empty list when
+            *start_node* is not present in the graph.
+        """
+        with self._lock:
+            if start_node not in self.graph:
+                return []
+
+            visited: set[str] = {start_node}
+            queue: deque[tuple[str, int]] = deque([(start_node, 0)])
+            result: list[str] = [start_node]
+
+            while queue:
+                node, current_depth = queue.popleft()
+                if current_depth < depth:
+                    for neighbor in self.graph[node]:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            result.append(neighbor)
+                            queue.append((neighbor, current_depth + 1))
+
+            return result
+
+    # ------------------------------------------------------------------
+    # Risk propagation
+    # ------------------------------------------------------------------
+
+    def propagate_risk(self, start_node: str, hops: int = 2) -> dict:
+        """
+        Build a depth-annotated risk propagation map around *start_node*.
+
+        Leverages :meth:`multi_hop_neighbors` to discover all nodes within
+        *hops* of *start_node* and records the minimum hop distance at which
+        each node was first encountered.
+
+        Parameters
+        ----------
+        start_node:
+            Prefixed node identifier from which risk propagates.
+        hops:
+            Maximum propagation depth.
+
+        Returns
+        -------
+        dict
+            Mapping of ``{node: depth}`` where *depth* is the minimum number
+            of hops from *start_node* to that node.  *start_node* itself is
+            included with depth ``0``.  Returns an empty dict when
+            *start_node* is not present in the graph.
+        """
+        result: dict[str, int] = {}
+        seen: set[str] = set()
+
+        for depth in range(hops + 1):
+            for node in self.multi_hop_neighbors(start_node, depth):
+                if node not in seen:
+                    result[node] = depth
+                    seen.add(node)
+
+        return result
 
 
 # ---------------------------------------------------------------------------

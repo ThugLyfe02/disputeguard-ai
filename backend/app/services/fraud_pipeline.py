@@ -15,6 +15,8 @@ graph signal worker trigger
     ↓
 risk engines
     ↓
+graph feature extraction
+    ↓
 reputation intelligence
     ↓
 feature store
@@ -35,6 +37,7 @@ from app.services.event_bus import event_bus
 from app.services.fraud_stream import fraud_stream
 from app.services.fraud_network_graph import fraud_graph
 from app.services.temporal_graph import temporal_graph
+from app.services.graph_feature_engine import graph_feature_engine
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine
@@ -147,6 +150,16 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     chargeback_probability = engine_scores.get("ml_engine", 0)
 
     # --------------------------------------------------
+    # Graph Feature Extraction
+    # --------------------------------------------------
+
+    graph_features = graph_feature_engine.extract(
+        transaction_id,
+        device_hash,
+        merchant_id
+    )
+
+    # --------------------------------------------------
     # Reputation intelligence
     # --------------------------------------------------
 
@@ -173,7 +186,10 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
         cluster_risk_score=cluster_risk_score,
         network_risk_score=network_risk_score,
         fraud_network_score=fraud_network_score,
-        chargeback_probability=chargeback_probability
+        chargeback_probability=chargeback_probability,
+
+        # graph features
+        **graph_features
     )
 
     # --------------------------------------------------
@@ -203,7 +219,9 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
             "fraud_network_analysis": fraud_network_analysis,
             "reputation": reputation,
             "ml_prediction": ml_prediction
-        }
+        },
+
+        "graph_features": graph_features
     }
 
     # --------------------------------------------------

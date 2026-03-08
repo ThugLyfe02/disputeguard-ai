@@ -33,6 +33,7 @@ from app.api.fraud_policy import router as fraud_policy_router
 from app.api.fraud_experiments import router as fraud_experiments_router
 from app.api.fraud_graph_ml import router as fraud_graph_ml_router
 from app.api.fraud_control_center import router as fraud_control_router
+from app.api.fraud_attacks import router as fraud_attack_router
 
 from app.database import engine
 from app.models.base import Base
@@ -79,6 +80,7 @@ app.include_router(fraud_policy_router)
 app.include_router(fraud_experiments_router)
 app.include_router(fraud_graph_ml_router)
 app.include_router(fraud_control_router)
+app.include_router(fraud_attack_router)
 
 
 @app.get("/")

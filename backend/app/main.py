@@ -38,6 +38,7 @@ from app.api.fraud_soc import router as fraud_soc_router
 from app.api.fraud_platform import router as fraud_platform_router
 from app.api.fraud_graph_visualization import router as fraud_graph_visualization_router
 from app.api.fraud_risk import router as fraud_risk_router
+from app.api.fraud_risk_api import router as fraud_risk_router
 
 
 from app.subscribers import register_all_subscribers
@@ -97,6 +98,7 @@ app.include_router(fraud_attack_router)
 app.include_router(fraud_soc_router)
 app.include_router(fraud_platform_router)
 app.include_router(fraud_graph_visualization_router)
+app.include_router(fraud_risk_router)
 app.include_router(fraud_risk_router)
 
 

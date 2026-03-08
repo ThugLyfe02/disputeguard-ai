@@ -1,24 +1,27 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+import json
 
-from app.dependencies import get_db
-from app.services.event_stream_processor import ingest_event
-from app.services.fraud_worker import process_event
+from app.services.fraud_stream import fraud_stream
+
 
 router = APIRouter()
 
 
-@router.post("/fraud/stream")
-def stream_fraud_event(data: dict):
+@router.get("/fraud/stream")
+async def fraud_event_stream():
+    """
+    Real-time fraud intelligence stream.
 
-    transaction = data.get("transaction")
+    This endpoint allows dashboards and monitoring systems
+    to subscribe to fraud analysis events in real time.
+    """
 
-    device_hash = data.get("device_hash")
+    async def event_generator():
+        async for event in fraud_stream.subscribe():
+            yield f"data: {json.dumps(event)}\n\n"
 
-    return ingest_event(transaction, device_hash)
-
-
-@router.post("/fraud/process-next")
-def process_next_event(db: Session = Depends(get_db)):
-
-    return process_event(db)
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )

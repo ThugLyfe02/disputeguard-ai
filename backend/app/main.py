@@ -37,8 +37,8 @@ from app.api.fraud_attacks import router as fraud_attack_router
 from app.api.fraud_soc import router as fraud_soc_router
 from app.api.fraud_platform import router as fraud_platform_router
 from app.api.fraud_graph_visualization import router as fraud_graph_visualization_router
-from app.subscribers import register_all_subscribers
 
+from app.subscribers import register_all_subscribers
 
 from app.database import engine
 from app.models.base import Base
@@ -47,11 +47,17 @@ from app.models.base import Base
 app = FastAPI(title="DisputeGuard AI")
 
 
-# Automatically create tables
+# --------------------------------------------------
+# Database initialization
+# --------------------------------------------------
+
 Base.metadata.create_all(bind=engine)
 
 
-# Register routers
+# --------------------------------------------------
+# Register API routers
+# --------------------------------------------------
+
 app.include_router(webhook_router, prefix="/webhooks")
 app.include_router(disputes_router)
 app.include_router(metrics_router)
@@ -89,8 +95,24 @@ app.include_router(fraud_attack_router)
 app.include_router(fraud_soc_router)
 app.include_router(fraud_platform_router)
 app.include_router(fraud_graph_visualization_router)
-register_all_subscribers()
 
+
+# --------------------------------------------------
+# Startup Events
+# --------------------------------------------------
+
+@app.on_event("startup")
+def startup_event():
+    """
+    Register event-driven subscribers when the application boots.
+    Prevents duplicate registrations in dev reload mode.
+    """
+    register_all_subscribers()
+
+
+# --------------------------------------------------
+# Health Endpoint
+# --------------------------------------------------
 
 @app.get("/")
 def root():

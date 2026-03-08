@@ -39,6 +39,7 @@ from app.risk_engines.graph_engine import GraphEngine
 from app.risk_engines.cross_merchant_engine import CrossMerchantEngine
 from app.risk_engines.network_engine import NetworkEngine
 from app.risk_engines.ml_engine import MLEngine
+from app.risk_engines.fraud_network_engine import FraudNetworkEngine
 
 from app.services.risk_orchestrator import RiskOrchestrator
 

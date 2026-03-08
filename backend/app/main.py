@@ -40,6 +40,7 @@ from app.api.fraud_graph_visualization import router as fraud_graph_visualizatio
 from app.api.fraud_risk import router as fraud_risk_router
 from app.api.fraud_risk_api import router as fraud_risk_router
 from app.api.billing_api import router as billing_router
+from app.api.stripe_webhooks import router as stripe_router
 
 
 from app.subscribers import register_all_subscribers
@@ -102,6 +103,7 @@ app.include_router(fraud_graph_visualization_router)
 app.include_router(fraud_risk_router)
 app.include_router(fraud_risk_router)
 app.include_router(billing_router)
+app.include_router(stripe_router)
 
 
 # --------------------------------------------------

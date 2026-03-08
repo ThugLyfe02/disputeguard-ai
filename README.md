@@ -330,3 +330,245 @@ Areas of interest include:
 - real-time fraud detection
 - behavioral analytics
 - distributed fraud pipelines
+
+---
+
+# Architecture Diagrams
+
+## System Data Flow
+
+The platform processes fraud signals through a layered pipeline.
+
+```
+Client Transaction
+        │
+        ▼
+ Fraud Platform API
+        │
+        ▼
+ Fraud Signal Pipeline
+        │
+ ┌──────┼────────┐
+ │      │        │
+ ▼      ▼        ▼
+Device  Reputation  Behavioral
+Risk    Engine      Biometrics
+ │
+ ▼
+ Fraud Graph Engine
+ │
+ ▼
+ Machine Learning Prediction
+ │
+ ▼
+ AI Fraud Investigator
+ │
+ ▼
+ Autonomous Defense Engine
+ │
+ ▼
+ Fraud SOC / Case Management
+```
+
+---
+
+## Fraud Graph Intelligence
+
+Fraud entities are modeled as a **knowledge graph**.
+
+```
+Device ────── Customer
+   │             │
+   │             │
+   ▼             ▼
+ Transaction ── Merchant
+      │
+      ▼
+   Dispute
+```
+
+Graph analytics detect patterns like:
+
+- shared devices across accounts
+- coordinated fraud rings
+- cross-merchant fraud networks
+- suspicious clusters
+
+---
+
+## Real-Time Fraud Pipeline
+
+```
+Transaction Event
+        │
+        ▼
+ Event Streaming Pipeline
+        │
+        ▼
+ Fraud Detection Layer
+        │
+        ▼
+ Intelligence Layer
+        │
+        ▼
+ AI Investigation
+        │
+        ▼
+ Automated Response
+```
+
+This architecture enables **real-time fraud protection**.
+
+---
+
+# API Overview
+
+Below is a simplified overview of the platform’s main API endpoints.
+
+---
+
+## Fraud Evaluation
+
+| Method | Endpoint | Description |
+|------|------|------|
+POST | `/fraud/platform/evaluate` | Full fraud evaluation of a transaction |
+
+Example request:
+
+```json
+{
+  "transaction": {
+    "id": "tx_1001",
+    "customer_id": "cust_42",
+    "amount": 249.99
+  },
+  "device_hash": "device_abc123"
+}
+```
+
+---
+
+## Fraud Simulation
+
+| Method | Endpoint | Description |
+|------|------|------|
+POST | `/fraud/simulate/card_testing` | Simulate card testing attack |
+POST | `/fraud/simulate/device_farm` | Simulate device farm fraud |
+POST | `/fraud/simulate/fraud_ring` | Simulate coordinated fraud ring |
+
+---
+
+## Threat Intelligence
+
+| Method | Endpoint | Description |
+|------|------|------|
+POST | `/fraud/threat/intel` | Add threat intelligence indicator |
+GET | `/fraud/threat/{type}/{value}` | Lookup threat intelligence |
+
+Example:
+
+```
+GET /fraud/threat/ip/185.203.118.19
+```
+
+---
+
+## Fraud Dashboard
+
+| Method | Endpoint | Description |
+|------|------|------|
+GET | `/fraud/control/overview` | System fraud metrics |
+GET | `/fraud/control/heatmap` | Merchant dispute heatmap |
+GET | `/fraud/control/high-risk` | High-risk entities |
+GET | `/fraud/control/global-threats` | Global threat intelligence |
+
+---
+
+## Fraud Case Management
+
+| Method | Endpoint | Description |
+|------|------|------|
+POST | `/fraud/cases/create` | Open fraud investigation |
+POST | `/fraud/cases/assign` | Assign case to analyst |
+POST | `/fraud/cases/note` | Add investigation note |
+POST | `/fraud/cases/resolve` | Close investigation |
+
+---
+
+## Fraud Security Operations Center
+
+| Method | Endpoint | Description |
+|------|------|------|
+POST | `/fraud/soc/incident` | Create fraud incident |
+GET | `/fraud/soc/timeline/{incident_id}` | Retrieve incident timeline |
+
+---
+
+# SDK Integration
+
+Developers can integrate with the platform using the Python SDK.
+
+Example:
+
+```python
+from sdk import FraudClient, Transaction
+
+client = FraudClient(
+    base_url="https://fraud-platform.example.com",
+    api_key="YOUR_API_KEY"
+)
+
+transaction = Transaction(
+    id="tx_1001",
+    customer_id="cust_42",
+    amount=249.99
+)
+
+result = client.evaluate_transaction(
+    transaction,
+    device_hash="device_abc123"
+)
+
+print(result)
+```
+
+---
+
+# Example Fraud Evaluation Output
+
+```json
+{
+  "transaction_id": "tx_1001",
+  "risk_score": 0.83,
+  "risk_level": "high",
+  "defense_actions": [
+    "block_transaction",
+    "freeze_device"
+  ]
+}
+```
+
+---
+
+# Future Improvements
+
+Potential areas for expansion:
+
+- distributed fraud detection pipelines
+- real-time Kafka-based event processing
+- advanced graph neural network models
+- automated fraud policy learning
+- merchant-specific model customization
+
+---
+
+# Contributing
+
+Contributions are welcome.
+
+Potential contributions include:
+
+- fraud detection algorithms
+- graph ML improvements
+- dashboard visualizations
+- performance optimizations

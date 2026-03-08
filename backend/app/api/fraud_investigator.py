@@ -2,25 +2,32 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
-from app.services.fraud_investigator import investigate_transaction
+from app.services.investigation_service import investigate_entity
 
 router = APIRouter()
 
 
-@router.post("/fraud/investigate")
-def investigate(data: dict, db: Session = Depends(get_db)):
+@router.get("/fraud/investigate/{entity}")
+def investigate(entity: str, db: Session = Depends(get_db)):
     """
-    Perform an AI-assisted fraud investigation on a transaction.
+    Perform a fraud investigation on a given entity.
+
+    Entities can include:
+    - device hash
+    - transaction id
+    - email
+    - IP address
+
+    The investigation engine analyzes:
+    - fraud graph cluster connections
+    - cross-merchant activity
+    - reputation scoring
+    - fraud ring detection
     """
 
-    transaction = data.get("transaction")
+    report = investigate_entity(db, entity)
 
-    device_hash = data.get("device_hash")
-
-    report = investigate_transaction(
-        db,
-        transaction,
-        device_hash
-    )
-
-    return report
+    return {
+        "status": "investigation_complete",
+        "report": report
+    }

@@ -18,6 +18,8 @@ from app.services.feature_store import store_features
 from app.services.fraud_alerts import generate_alert
 
 from app.services.event_bus import event_bus
+from app.services.fraud_stream import fraud_stream
+from app.services.fraud_network_graph import fraud_graph
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine
@@ -67,6 +69,16 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
 
     engine_results = orchestrator_result.get("engines", {})
     engine_scores = orchestrator_result.get("scores", {})
+
+    # --------------------------------------------------
+    # Expand Fraud Intelligence Graph
+    # --------------------------------------------------
+
+    fraud_graph.build_graph_from_transaction(
+        transaction,
+        device_hash,
+        merchant_id
+    )
 
     # --------------------------------------------------
     # Convenience Aliases
@@ -144,6 +156,8 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
         "fraud.analysis.completed",
         fraud_result
     )
+
+    fraud_stream.publish("fraud_analysis_completed", fraud_result)
 
     # --------------------------------------------------
     # Final Response

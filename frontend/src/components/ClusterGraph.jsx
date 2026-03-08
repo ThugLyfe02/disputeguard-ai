@@ -1,83 +1,80 @@
-import React from "react";
+import React, { useRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-
-/*
-ClusterGraph
-
-Visualizes fraud network clusters using a force-directed graph.
-
-Nodes:
-  transactions
-  devices
-  merchants
-  emails
-
-Edges:
-  relationships extracted from fraud graph
-
-Data format expected:
-
-{
-  nodes: [{ id: "tx_1", type: "transaction" }],
-  links: [{ source: "tx_1", target: "device_abc" }]
-}
-*/
 
 export default function ClusterGraph({ nodes = [], edges = [] }) {
 
+  const fgRef = useRef();
+
+  // Convert edges to graph links
+  const links = edges.map(e => ({
+    source: e.source,
+    target: e.target
+  }));
+
   const graphData = {
     nodes: nodes,
-    links: edges
-  };
-
-  const nodeColor = node => {
-    switch (node.type) {
-      case "device":
-        return "#ff4d4f";
-      case "merchant":
-        return "#1890ff";
-      case "transaction":
-        return "#52c41a";
-      case "email":
-        return "#faad14";
-      default:
-        return "#999";
-    }
+    links: links
   };
 
   return (
-    <div style={{ border: "1px solid #eee", padding: 10 }}>
-
-      <h3>Fraud Network Graph</h3>
-
+    <div style={{ height: "600px", width: "100%" }}>
       <ForceGraph2D
+        ref={fgRef}
         graphData={graphData}
 
-        nodeLabel={node => `${node.id} (${node.type})`}
-
-        nodeAutoColorBy="type"
+        nodeLabel="label"
 
         nodeCanvasObject={(node, ctx, globalScale) => {
 
-          const label = node.id;
-          const fontSize = 12 / globalScale;
+          const risk = node.risk_score || 0;
 
-          ctx.font = `${fontSize}px Sans-Serif`;
-          ctx.fillStyle = nodeColor(node);
+          // Stripe-style risk coloring
+          let color = "#4CAF50";     // green (safe)
+
+          if (risk > 0.8) color = "#ff0000";
+          else if (risk > 0.5) color = "#ff9800";
+          else if (risk > 0.2) color = "#ffc107";
+
+          // Node size scales with cluster importance
+          const size = 4 + (node.cluster_size || 1) * 0.5;
+
           ctx.beginPath();
-
-          ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
+          ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
           ctx.fill();
 
-          ctx.fillStyle = "#333";
-          ctx.fillText(label, node.x + 8, node.y + 3);
+          // Node label
+          const label = node.label;
+          const fontSize = 10 / globalScale;
+          ctx.font = `${fontSize}px Sans-Serif`;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(label, node.x + size + 2, node.y + size + 2);
         }}
 
-        linkDirectionalParticles={2}
-        linkDirectionalParticleSpeed={0.002}
+        linkColor={(link) => {
 
+          // velocity signal
+          const velocity = link.velocity || 0;
+
+          if (velocity > 0.8) return "#ff0000";
+          if (velocity > 0.5) return "#ff9800";
+          return "#999";
+        }}
+
+        linkWidth={(link) => {
+          const velocity = link.velocity || 0;
+          return 1 + velocity * 4;
+        }}
+
+        linkDirectionalParticles={(link) => {
+          const velocity = link.velocity || 0;
+          return velocity > 0.6 ? 2 : 0;
+        }}
+
+        linkDirectionalParticleWidth={2}
+
+        backgroundColor="#0b0f19"
       />
-
     </div>
   );
 }

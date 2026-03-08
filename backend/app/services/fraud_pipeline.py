@@ -35,9 +35,10 @@ from app.services.fraud_network_graph import fraud_graph
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine
-from app.risk_engines.ml_engine import MLEngine
 from app.risk_engines.graph_engine import GraphEngine
 from app.risk_engines.cross_merchant_engine import CrossMerchantEngine
+from app.risk_engines.network_engine import NetworkEngine
+from app.risk_engines.ml_engine import MLEngine
 
 from app.services.risk_orchestrator import RiskOrchestrator
 
@@ -84,6 +85,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
         DeviceEngine(),
         GraphEngine(),
         CrossMerchantEngine(),
+        NetworkEngine(),
         MLEngine(),
     ])
 
@@ -105,6 +107,9 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     cluster_risk_score = engine_scores.get("graph_engine", 0)
 
     cross_merchant = engine_results.get("cross_merchant_engine", {}).get("details", {})
+
+    network_analysis = engine_results.get("network_engine", {}).get("details", {})
+    network_risk_score = engine_scores.get("network_engine", 0)
 
     ml_prediction = engine_results.get("ml_engine", {}).get("details", {})
     chargeback_probability = engine_scores.get("ml_engine", 0)
@@ -149,6 +154,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
             "rule_score": rule_score,
             "device_risk_score": device_risk_score,
             "cluster_risk_score": cluster_risk_score,
+            "network_risk_score": network_risk_score,
             "chargeback_probability": chargeback_probability,
             "reputation_score": reputation_score
         },
@@ -157,6 +163,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
             "device_risk": device_risk,
             "graph_cluster": graph_cluster,
             "cross_merchant": cross_merchant,
+            "network_analysis": network_analysis,
             "reputation": reputation,
             "ml_prediction": ml_prediction
         }

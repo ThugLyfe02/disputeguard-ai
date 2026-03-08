@@ -20,6 +20,7 @@ from app.api.reputation import router as reputation_router
 from app.api.feature_store import router as feature_store_router
 from app.api.behavioral_biometrics import router as behavioral_router
 from app.api.fraud_stream import router as fraud_stream_router
+from app.api.fraud_network import router as fraud_network_router
 
 from app.database import engine
 from app.models.base import Base
@@ -53,6 +54,7 @@ app.include_router(reputation_router)
 app.include_router(feature_store_router)
 app.include_router(behavioral_router)
 app.include_router(fraud_stream_router)
+app.include_router(fraud_network_router)
 
 
 @app.get("/")

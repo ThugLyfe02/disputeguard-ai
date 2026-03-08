@@ -2,47 +2,39 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
-from app.services.global_intelligence import (
-    check_global_device_risk,
-    check_global_email_risk
-)
+from app.services.global_intelligence import get_global_risk
+
 
 router = APIRouter()
-
 
 """
 Global Fraud Intelligence API
 
-Provides network-level fraud detection signals across merchants.
+Provides network-level fraud intelligence signals
+aggregated across merchants.
+
+Entities supported:
+- device_hash
+- email
+- ip
+- customer_id
 """
 
 
-@router.get("/fraud/global/device/{device_hash}")
-def global_device_risk(device_hash: str, db: Session = Depends(get_db)):
+@router.get("/fraud/global/{entity_type}/{entity_id}")
+def global_risk(entity_type: str, entity_id: str, db: Session = Depends(get_db)):
     """
-    Check if a device fingerprint has been used across merchants
-    and calculate global fraud risk.
+    Query global fraud risk for a given entity.
+
+    Example:
+        /fraud/global/device_hash/abc123
+        /fraud/global/email/test@email.com
     """
 
-    result = check_global_device_risk(db, device_hash)
+    result = get_global_risk(db, entity_type, entity_id)
 
     return {
-        "entity_type": "device",
-        "device_hash": device_hash,
-        "global_analysis": result
-    }
-
-
-@router.get("/fraud/global/email/{email}")
-def global_email_risk(email: str, db: Session = Depends(get_db)):
-    """
-    Evaluate fraud risk of an email across all merchants.
-    """
-
-    result = check_global_email_risk(db, email)
-
-    return {
-        "entity_type": "email",
-        "email": email,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
         "global_analysis": result
     }

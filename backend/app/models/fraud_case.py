@@ -1,9 +1,16 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
 from datetime import datetime
+
 from app.models.base import Base
 
 
 class FraudCase(Base):
+    """
+    Fraud investigation case.
+
+    Created when a transaction crosses
+    risk thresholds or triggers alerts.
+    """
 
     __tablename__ = "fraud_cases"
 
@@ -14,7 +21,13 @@ class FraudCase(Base):
 
     risk_score = Column(Float)
 
-    status = Column(String, default="open")
-    assigned_to = Column(String, nullable=True)
+    case_status = Column(String, default="open")
+    case_priority = Column(String, default="medium")
+
+    alert_type = Column(String)
+
+    investigation_notes = Column(String)
+
+    fraud_analysis = Column(JSON)
 
     created_at = Column(DateTime, default=datetime.utcnow)

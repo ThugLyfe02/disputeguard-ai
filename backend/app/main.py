@@ -26,6 +26,7 @@ from app.api.fraud_investigator import router as fraud_investigator_router
 from app.api.fraud_defense import router as fraud_defense_router
 from app.api.global_intelligence import router as global_intelligence_router
 from app.api.fraud_simulator import router as fraud_simulator_router
+from app.api.fraud_dashboard import router as fraud_dashboard_router
 
 from app.database import engine
 from app.models.base import Base
@@ -65,6 +66,7 @@ app.include_router(fraud_investigator_router)
 app.include_router(fraud_defense_router)
 app.include_router(global_intelligence_router)
 app.include_router(fraud_simulator_router)
+app.include_router(fraud_dashboard_router)
 
 
 @app.get("/")

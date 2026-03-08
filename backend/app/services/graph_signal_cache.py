@@ -19,6 +19,7 @@ cross_merchant_score
 cluster_risk_score
 velocity_score
 cluster_size
+propagated_risk
 
 Architecture
 ------------
@@ -32,6 +33,8 @@ cached signals available to engines
 
 from collections import defaultdict
 from typing import Dict
+import threading
+import time
 
 from app.services.fraud_network_graph import fraud_graph
 from app.services.temporal_graph import temporal_graph
@@ -39,13 +42,24 @@ from app.services.temporal_graph import temporal_graph
 
 class GraphSignalCache:
 
+    # cache refresh TTL (seconds)
+    CACHE_TTL = 30
+
     def __init__(self):
 
+        # graph signals
         self.device_reuse: Dict[str, float] = defaultdict(float)
         self.cross_merchant: Dict[str, float] = defaultdict(float)
         self.cluster_risk: Dict[str, float] = defaultdict(float)
         self.velocity_score: Dict[str, float] = defaultdict(float)
         self.cluster_size: Dict[str, int] = defaultdict(int)
+        self.propagated_risk: Dict[str, float] = defaultdict(float)
+
+        # refresh timestamps
+        self.last_update: Dict[str, float] = defaultdict(float)
+
+        # thread safety
+        self._lock = threading.RLock()
 
     # --------------------------------------------------
     # Update Signals
@@ -56,41 +70,83 @@ class GraphSignalCache:
         Update cached signals for a node after graph expansion.
         """
 
-        cluster = fraud_graph.detect_cluster(node)
+        with self._lock:
 
-        if not cluster:
-            return
+            now = time.time()
 
-        risk = fraud_graph.calculate_network_risk(cluster)
+            if now - self.last_update[node] < self.CACHE_TTL:
+                return
 
-        devices = [n for n in cluster if n.startswith("device_")]
-        merchants = [n for n in cluster if n.startswith("merchant_")]
+            cluster = fraud_graph.detect_cluster(node)
 
-        cluster_size = len(cluster)
+            if not cluster:
+                return
 
-        # device reuse
-        for device in devices:
+            risk = fraud_graph.calculate_network_risk(cluster)
+
+            devices = [n for n in cluster if n.startswith("device_")]
+            merchants = [n for n in cluster if n.startswith("merchant_")]
+
+            cluster_size = len(cluster)
+
+            # --------------------------------------------------
+            # Device reuse signal
+            # --------------------------------------------------
+
             reuse_score = min(len(merchants) / 5, 1.0)
-            self.device_reuse[device] = reuse_score
 
-        # cross merchant spread
-        cross_score = min(len(merchants) / 10, 1.0)
+            for device in devices:
+                self.device_reuse[device] = reuse_score
 
-        for node in cluster:
-            self.cross_merchant[node] = cross_score
+            # --------------------------------------------------
+            # Cross merchant signal
+            # --------------------------------------------------
 
-        # cluster risk
-        for node in cluster:
-            self.cluster_risk[node] = risk
+            cross_score = min(len(merchants) / 10, 1.0)
 
-        # velocity signal
-        for node in cluster:
-            velocity = temporal_graph.connection_velocity(node)
-            self.velocity_score[node] = min(velocity / 10, 1.0)
+            for n in cluster:
+                self.cross_merchant[n] = cross_score
 
-        # cluster size
-        for node in cluster:
-            self.cluster_size[node] = cluster_size
+            # --------------------------------------------------
+            # Cluster risk
+            # --------------------------------------------------
+
+            for n in cluster:
+                self.cluster_risk[n] = risk
+
+            # --------------------------------------------------
+            # Temporal velocity
+            # --------------------------------------------------
+
+            for n in cluster:
+                velocity = temporal_graph.connection_velocity(n)
+                self.velocity_score[n] = min(velocity / 10, 1.0)
+
+            # --------------------------------------------------
+            # Risk propagation signal
+            # --------------------------------------------------
+
+            propagation = fraud_graph.propagate_risk(node)
+
+            if propagation:
+                max_prop = max(
+                    (1 / (depth + 1))
+                    for depth in propagation.values()
+                )
+            else:
+                max_prop = 0
+
+            for n in cluster:
+                self.propagated_risk[n] = max_prop
+
+            # --------------------------------------------------
+            # Cluster size
+            # --------------------------------------------------
+
+            for n in cluster:
+                self.cluster_size[n] = cluster_size
+
+            self.last_update[node] = now
 
     # --------------------------------------------------
     # Accessors
@@ -111,5 +167,25 @@ class GraphSignalCache:
     def get_cluster_size(self, node):
         return self.cluster_size.get(node, 0)
 
+    def get_propagated_risk(self, node):
+        return self.propagated_risk.get(node, 0)
 
+    # --------------------------------------------------
+    # Convenience aggregator
+    # --------------------------------------------------
+
+    def get_signals(self, node: str):
+
+        return {
+
+            "device_reuse_score": self.get_device_reuse(node),
+            "cross_merchant_score": self.get_cross_merchant(node),
+            "cluster_risk_score": self.get_cluster_risk(node),
+            "velocity_score": self.get_velocity(node),
+            "cluster_size": self.get_cluster_size(node),
+            "propagated_risk": self.get_propagated_risk(node),
+        }
+
+
+# Global singleton
 graph_signal_cache = GraphSignalCache()

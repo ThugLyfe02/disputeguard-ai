@@ -4,22 +4,28 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.services.fraud_graph_analysis import analyze_entity_cluster
 
-
 router = APIRouter()
 
 
 @router.get("/fraud/graph/{entity}")
 def visualize_fraud_graph(entity: str, db: Session = Depends(get_db)):
     """
-    Returns graph cluster data for visualization.
+    Fraud Graph Visualization API.
 
-    This endpoint allows investigators to visualize fraud
-    relationships between entities such as:
+    This endpoint exposes the fraud ring graph structure
+    so investigators can visualize connections between:
 
-    - devices
-    - transactions
-    - disputes
-    - customers
+        • devices
+        • transactions
+        • disputes
+        • customers
+
+    The response is formatted for graph visualization tools
+    such as:
+
+        • D3.js
+        • Cytoscape
+        • Sigma.js
     """
 
     cluster_data = analyze_entity_cluster(db, entity)
@@ -27,12 +33,14 @@ def visualize_fraud_graph(entity: str, db: Session = Depends(get_db)):
     nodes = []
     edges = []
 
+    # Create nodes
     for node in cluster_data["cluster_entities"]:
         nodes.append({
             "id": node,
             "label": node
         })
 
+    # Create edges
     for node in cluster_data["cluster_entities"]:
         if node != entity:
             edges.append({

@@ -18,6 +18,8 @@ FastAPI Fraud APIs
 const API_BASE = "http://localhost:8000";   // change later for production
 const API_KEY = "test_api_key";             // replace with real key later
 
+
+
 // --------------------------------------------------
 // Generic Request Helper
 // --------------------------------------------------
@@ -34,11 +36,17 @@ async function apiRequest(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+
+        const text = await response.text();
+
+        throw new Error(
+            `API error ${response.status}: ${text}`
+        );
     }
 
     return response.json();
 }
+
 
 
 // --------------------------------------------------
@@ -58,6 +66,7 @@ export async function scoreTransaction(transaction, deviceHash) {
 }
 
 
+
 // --------------------------------------------------
 // Fraud Network Graph
 // --------------------------------------------------
@@ -69,8 +78,9 @@ export async function getFraudNetwork() {
 }
 
 
+
 // --------------------------------------------------
-// Fraud Cluster
+// Fraud Cluster Investigation
 // --------------------------------------------------
 
 export async function getFraudCluster(entity) {
@@ -78,6 +88,7 @@ export async function getFraudCluster(entity) {
     return apiRequest(`/fraud/network/${entity}`);
 
 }
+
 
 
 // --------------------------------------------------
@@ -91,8 +102,9 @@ export async function detectFraudRing(entity) {
 }
 
 
+
 // --------------------------------------------------
-// Device Risk
+// Device Intelligence
 // --------------------------------------------------
 
 export async function getDeviceRisk(deviceHash) {
@@ -102,8 +114,9 @@ export async function getDeviceRisk(deviceHash) {
 }
 
 
+
 // --------------------------------------------------
-// Reputation
+// Reputation Intelligence
 // --------------------------------------------------
 
 export async function getReputation(entityType, entityId) {
@@ -113,6 +126,7 @@ export async function getReputation(entityType, entityId) {
 }
 
 
+
 // --------------------------------------------------
 // Dashboard Metrics
 // --------------------------------------------------
@@ -120,5 +134,41 @@ export async function getReputation(entityType, entityId) {
 export async function getFraudMetrics() {
 
     return apiRequest("/metrics");
+
+}
+
+
+
+// --------------------------------------------------
+// Real-Time Fraud Event Feed
+// --------------------------------------------------
+
+export async function getRecentFraudEvents(limit = 20) {
+
+    return apiRequest(`/events/recent?limit=${limit}`);
+
+}
+
+
+
+// --------------------------------------------------
+// Graph Signal Cache (Stripe-style optimization)
+// --------------------------------------------------
+
+export async function getGraphSignals(node) {
+
+    return apiRequest(`/fraud/graph-signals/${node}`);
+
+}
+
+
+
+// --------------------------------------------------
+// Fraud Dashboard Summary
+// --------------------------------------------------
+
+export async function getDashboardOverview() {
+
+    return apiRequest("/fraud/dashboard");
 
 }

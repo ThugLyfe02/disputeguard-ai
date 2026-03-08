@@ -17,9 +17,10 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
 
-from app.services.fraud_network_service import (
-    build_fraud_network,
-    analyze_network_cluster,
+from app.services.fraud_network_graph import (
+    fraud_graph,
+    build_graph_from_transaction,
+    detect_cluster,
     calculate_network_risk,
 )
 
@@ -36,20 +37,20 @@ def fraud_network_overview(db: Session = Depends(get_db)):
     Returns global fraud network overview.
 
     Useful for monitoring the health of the fraud intelligence
-    graph and powering dashboards.
+    graph and powering dashboards.  The graph is populated
+    incrementally via :func:`build_graph_from_transaction` as
+    transactions flow through the pipeline.
     """
 
-    graph = build_fraud_network(db)
+    node_count = len(fraud_graph.graph)
+    edge_count = sum(len(v) for v in fraud_graph.graph.values())
 
-    if not graph:
+    if node_count == 0:
         return {
             "nodes": 0,
             "edges": 0,
             "status": "empty_network"
         }
-
-    node_count = len(graph)
-    edge_count = sum(len(v) for v in graph.values())
 
     return {
         "nodes": node_count,
@@ -67,6 +68,10 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
     """
     Investigate a specific entity in the fraud network.
 
+    Calls :func:`detect_cluster` to find all nodes reachable from
+    the given entity and :func:`calculate_network_risk` to score
+    the cluster.
+
     Example entities:
         device_abc123
         tx_9912
@@ -74,9 +79,7 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
         dispute_55
     """
 
-    graph = build_fraud_network(db)
-
-    if entity not in graph:
+    if entity not in fraud_graph.graph:
         return {
             "entity": entity,
             "cluster_size": 0,
@@ -86,8 +89,8 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
             "status": "entity_not_found"
         }
 
-    cluster = analyze_network_cluster(graph, entity)
-    risk_score = calculate_network_risk(db, entity)
+    cluster = detect_cluster(entity)
+    risk_score = calculate_network_risk(cluster)
 
     nodes = []
     edges = []
@@ -101,7 +104,7 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
 
     # Build edges
     for node in cluster:
-        for neighbor in graph.get(node, []):
+        for neighbor in fraud_graph.get_neighbors(node):
             if neighbor in cluster:
                 edges.append({
                     "source": node,
@@ -131,6 +134,9 @@ def fraud_ring_detection(entity: str, db: Session = Depends(get_db)):
     """
     Detect potential fraud rings.
 
+    Calls :func:`detect_cluster` to obtain the connected component and
+    :func:`calculate_network_risk` to score it.
+
     A fraud ring is defined as:
 
     • high network risk
@@ -138,17 +144,15 @@ def fraud_ring_detection(entity: str, db: Session = Depends(get_db)):
     • strong connection density
     """
 
-    graph = build_fraud_network(db)
-
-    if entity not in graph:
+    if entity not in fraud_graph.graph:
         return {
             "entity": entity,
             "fraud_ring_detected": False,
             "reason": "entity_not_found"
         }
 
-    cluster = analyze_network_cluster(graph, entity)
-    risk_score = calculate_network_risk(db, entity)
+    cluster = detect_cluster(entity)
+    risk_score = calculate_network_risk(cluster)
 
     cluster_size = len(cluster)
 
@@ -162,7 +166,7 @@ def fraud_ring_detection(entity: str, db: Session = Depends(get_db)):
         })
 
     for node in cluster:
-        for neighbor in graph.get(node, []):
+        for neighbor in fraud_graph.get_neighbors(node):
             if neighbor in cluster:
                 edges.append({
                     "source": node,

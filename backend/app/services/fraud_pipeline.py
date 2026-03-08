@@ -3,14 +3,15 @@ fraud_pipeline.py
 
 Core fraud intelligence pipeline.
 
-This pipeline orchestrates multiple fraud detection engines and produces
-a structured fraud analysis result.
-
-Architecture:
+Pipeline stages:
 
 transaction
     ↓
 fraud graph expansion
+    ↓
+temporal graph update
+    ↓
+graph signal cache update
     ↓
 risk engines
     ↓
@@ -34,6 +35,7 @@ from app.services.event_bus import event_bus
 from app.services.fraud_stream import fraud_stream
 from app.services.fraud_network_graph import fraud_graph
 from app.services.temporal_graph import temporal_graph
+from app.services.graph_signal_cache import graph_signal_cache
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine
@@ -47,23 +49,24 @@ from app.services.risk_orchestrator import RiskOrchestrator
 
 
 def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
-    """
-    Execute the DisputeGuard AI fraud intelligence pipeline.
-    """
 
     # --------------------------------------------------
-    # Event ID (Idempotency Protection)
+    # Event ID
     # --------------------------------------------------
 
     event_id = str(uuid.uuid4())
 
     # --------------------------------------------------
-    # Extract Transaction Attributes
+    # Extract transaction attributes
     # --------------------------------------------------
 
     transaction_id = transaction.get("id")
     merchant_id = transaction.get("merchant_id")
     amount = transaction.get("amount", 0)
+
+    tx_node = f"tx_{transaction_id}"
+    device_node = f"device_{device_hash}"
+    merchant_node = f"merchant_{merchant_id}"
 
     # --------------------------------------------------
     # Expand Fraud Intelligence Graph
@@ -76,18 +79,20 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     )
 
     # --------------------------------------------------
-    # Update Temporal Graph
+    # Temporal Graph Update
     # --------------------------------------------------
-
-    tx_node = f"tx_{transaction_id}"
-    device_node = f"device_{device_hash}"
-    merchant_node = f"merchant_{merchant_id}"
 
     temporal_graph.add_edge(tx_node, device_node)
     temporal_graph.add_edge(tx_node, merchant_node)
 
     # --------------------------------------------------
-    # Build Evaluation Context
+    # Graph Signal Cache Update
+    # --------------------------------------------------
+
+    graph_signal_cache.update(tx_node)
+
+    # --------------------------------------------------
+    # Build evaluation context
     # --------------------------------------------------
 
     context = {
@@ -98,7 +103,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     }
 
     # --------------------------------------------------
-    # Run Plugin-Based Risk Engines
+    # Run plugin-based risk engines
     # --------------------------------------------------
 
     orchestrator = RiskOrchestrator([
@@ -117,7 +122,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     engine_scores = orchestrator_result.get("scores", {})
 
     # --------------------------------------------------
-    # Convenience Aliases
+    # Convenience aliases
     # --------------------------------------------------
 
     rule_score = engine_scores.get("rule_engine", 0)
@@ -140,7 +145,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     chargeback_probability = engine_scores.get("ml_engine", 0)
 
     # --------------------------------------------------
-    # Reputation Intelligence
+    # Reputation intelligence
     # --------------------------------------------------
 
     reputation = get_reputation(
@@ -152,7 +157,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     reputation_score = reputation.get("reputation_score", 0)
 
     # --------------------------------------------------
-    # Store Features for ML Training
+    # Store ML features
     # --------------------------------------------------
 
     store_features(
@@ -170,7 +175,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     )
 
     # --------------------------------------------------
-    # Build Fraud Result
+    # Build fraud result
     # --------------------------------------------------
 
     fraud_result = {
@@ -200,14 +205,15 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     }
 
     # --------------------------------------------------
-    # Alert Generation
+    # Alert generation
     # --------------------------------------------------
 
     alert = generate_alert(fraud_result)
+
     fraud_result["alert"] = alert
 
     # --------------------------------------------------
-    # Publish Event to Event Bus
+    # Publish events
     # --------------------------------------------------
 
     event_payload = {
@@ -228,7 +234,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     )
 
     # --------------------------------------------------
-    # Final Response
+    # Final response
     # --------------------------------------------------
 
     return {

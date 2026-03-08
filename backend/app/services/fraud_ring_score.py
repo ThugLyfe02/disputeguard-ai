@@ -1,8 +1,3 @@
-from app.services.fraud_graph import FraudGraph
-from app.models.dispute import Dispute
-from app.models.transaction import Transaction
-
-
 def score_fraud_cluster(db, cluster):
 
     dispute_count = 0

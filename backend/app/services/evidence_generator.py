@@ -1,118 +1,203 @@
 """
 evidence_generator.py
 
-Chargeback Evidence Generator
+Fraud Evidence Generator
 
-Builds structured evidence packages for payment disputes using
-fraud intelligence signals produced by the fraud pipeline.
+Builds structured evidence packages for dispute responses and fraud
+investigation workflows.
 
-Evidence includes:
+Evidence combines:
 
-• transaction details
-• fraud risk scores
-• graph intelligence
-• device intelligence
-• network indicators
-• timeline reconstruction
+• Transaction data
+• Fraud engine signals
+• Graph intelligence
+• Device intelligence
+• Reputation signals
+• ML predictions
+• Timeline reconstruction
 
-The output can be sent directly to dispute APIs
-(Stripe / Shopify / Adyen / PayPal).
+Used by:
+
+• Fraud cases
+• Dispute response automation
+• Merchant dashboards
+• Investigation tools
 """
 
+from datetime import datetime
 
-def generate_evidence(dispute: dict, transaction: dict, fraud_result: dict | None = None):
+
+def generate_evidence(dispute: dict, transaction: dict, fraud_analysis: dict | None = None):
     """
-    Generate structured chargeback evidence.
+    Generate structured fraud evidence.
+
+    Parameters
+    ----------
+    dispute : dict
+        Dispute record.
+
+    transaction : dict
+        Original transaction.
+
+    fraud_analysis : dict | None
+        Output of fraud_pipeline (optional but recommended).
+
+    Returns
+    -------
+    dict
+        Structured evidence package.
     """
+
+    # --------------------------------------------------
+    # Transaction Info
+    # --------------------------------------------------
 
     transaction_id = transaction.get("id")
     amount = transaction.get("amount")
     customer_id = transaction.get("customer_id")
+    email = transaction.get("email")
+    merchant_id = transaction.get("merchant_id")
+
+    # --------------------------------------------------
+    # Dispute Info
+    # --------------------------------------------------
+
+    dispute_reason = dispute.get("reason")
+    dispute_id = dispute.get("id")
+
+    # --------------------------------------------------
+    # Fraud Signals (from pipeline)
+    # --------------------------------------------------
+
+    fraud_scores = {}
+    fraud_signals = {}
+
+    if fraud_analysis:
+
+        fraud_scores = fraud_analysis.get("scores", {})
+        fraud_signals = fraud_analysis.get("signals", {})
+
+    # --------------------------------------------------
+    # Graph Intelligence
+    # --------------------------------------------------
+
+    graph_cluster = fraud_signals.get("graph_cluster", {})
+    cross_merchant = fraud_signals.get("cross_merchant", {})
+    network_analysis = fraud_signals.get("network_analysis", {})
+
+    # --------------------------------------------------
+    # Device Intelligence
+    # --------------------------------------------------
+
+    device_risk = fraud_signals.get("device_risk", {})
+
+    # --------------------------------------------------
+    # Reputation Intelligence
+    # --------------------------------------------------
+
+    reputation = fraud_signals.get("reputation", {})
+
+    # --------------------------------------------------
+    # ML Prediction
+    # --------------------------------------------------
+
+    ml_prediction = fraud_signals.get("ml_prediction", {})
+
+    # --------------------------------------------------
+    # Fraud Indicators
+    # --------------------------------------------------
 
     fraud_indicators = []
-    fraud_scores = {}
+
+    if fraud_scores.get("device_risk_score", 0) > 0.6:
+        fraud_indicators.append("High device risk")
+
+    if fraud_scores.get("cluster_risk_score", 0) > 0.6:
+        fraud_indicators.append("Suspicious fraud cluster")
+
+    if fraud_scores.get("network_risk_score", 0) > 0.6:
+        fraud_indicators.append("Fraud network detected")
+
+    if fraud_scores.get("fraud_network_score", 0) > 0.7:
+        fraud_indicators.append("Fraud ring behavior")
+
+    if fraud_scores.get("chargeback_probability", 0) > 0.7:
+        fraud_indicators.append("High ML chargeback prediction")
+
+    if fraud_scores.get("reputation_score", 0) < 0.3:
+        fraud_indicators.append("Low reputation score")
 
     # --------------------------------------------------
-    # Extract fraud intelligence signals
-    # --------------------------------------------------
-
-    if fraud_result:
-
-        scores = fraud_result.get("scores", {})
-        signals = fraud_result.get("signals", {})
-
-        fraud_scores = scores
-
-        device_risk = signals.get("device_risk", {})
-        network_analysis = signals.get("network_analysis", {})
-        fraud_network_analysis = signals.get("fraud_network_analysis", {})
-
-        # Device reuse indicator
-        if device_risk.get("device_reuse", False):
-            fraud_indicators.append("Device reused across multiple transactions")
-
-        # Graph cluster indicator
-        cluster_size = fraud_network_analysis.get("cluster_size")
-        if cluster_size and cluster_size > 5:
-            fraud_indicators.append(f"Transaction belongs to fraud cluster of size {cluster_size}")
-
-        # Cross merchant fraud indicator
-        if network_analysis.get("cross_merchant", False):
-            fraud_indicators.append("Device used across multiple merchants")
-
-        # ML probability indicator
-        chargeback_probability = scores.get("chargeback_probability", 0)
-        if chargeback_probability > 0.7:
-            fraud_indicators.append("High ML chargeback probability")
-
-    # --------------------------------------------------
-    # Construct Evidence Timeline
+    # Timeline Reconstruction
     # --------------------------------------------------
 
     timeline = [
-        "Payment authorized",
-        "Order processed",
-        "Shipment confirmed",
-        "Delivery completed"
+        {
+            "event": "payment_authorized",
+            "timestamp": transaction.get("created_at"),
+        },
+        {
+            "event": "order_processed",
+            "timestamp": transaction.get("processed_at"),
+        },
+        {
+            "event": "shipment_confirmed",
+            "timestamp": transaction.get("shipped_at"),
+        },
+        {
+            "event": "delivery_completed",
+            "timestamp": transaction.get("delivered_at"),
+        },
+        {
+            "event": "dispute_opened",
+            "timestamp": dispute.get("created_at"),
+        },
     ]
 
+    # remove None timestamps
+    timeline = [event for event in timeline if event["timestamp"]]
+
     # --------------------------------------------------
-    # Build Evidence Package
+    # Evidence Package
     # --------------------------------------------------
 
     evidence = {
 
-        "transaction_id": transaction_id,
-        "amount": amount,
-        "customer_id": customer_id,
+        "generated_at": datetime.utcnow().isoformat(),
 
-        "dispute_reason": dispute.get("reason"),
+        "transaction": {
+            "transaction_id": transaction_id,
+            "amount": amount,
+            "customer_id": customer_id,
+            "email": email,
+            "merchant_id": merchant_id
+        },
 
-        "timeline": timeline,
+        "dispute": {
+            "dispute_id": dispute_id,
+            "reason": dispute_reason
+        },
 
-        "fraud_scores": fraud_scores,
+        "scores": fraud_scores,
+
+        "signals": {
+            "device_risk": device_risk,
+            "graph_cluster": graph_cluster,
+            "cross_merchant": cross_merchant,
+            "network_analysis": network_analysis,
+            "reputation": reputation,
+            "ml_prediction": ml_prediction
+        },
 
         "fraud_indicators": fraud_indicators,
 
-        "recommendation": _recommendation(fraud_scores)
+        "timeline": timeline,
+
+        "investigation_notes": {
+            "cluster_size": len(graph_cluster) if isinstance(graph_cluster, list) else None,
+            "device_risk_flag": fraud_scores.get("device_risk_score", 0) > 0.6,
+            "network_risk_flag": fraud_scores.get("network_risk_score", 0) > 0.6
+        }
     }
 
     return evidence
-
-
-# --------------------------------------------------
-# Recommendation Engine
-# --------------------------------------------------
-
-def _recommendation(scores: dict):
-
-    chargeback_probability = scores.get("chargeback_probability", 0)
-    network_risk = scores.get("fraud_network_score", 0)
-
-    if chargeback_probability > 0.8 or network_risk > 0.7:
-        return "High likelihood of fraud"
-
-    if chargeback_probability > 0.5:
-        return "Moderate fraud risk"
-
-    return "Low fraud risk"

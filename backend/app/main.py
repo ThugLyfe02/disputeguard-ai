@@ -17,6 +17,7 @@ from app.api.fraud_graph import router as fraud_graph_router
 from app.api.fraud_rings import router as fraud_rings_router
 from app.api.cross_merchant import router as cross_merchant_router
 from app.api.reputation import router as reputation_router
+from app.api.feature_store import router as feature_store_router
 
 from app.database import engine
 from app.models.base import Base
@@ -47,6 +48,7 @@ app.include_router(fraud_graph_router)
 app.include_router(fraud_rings_router)
 app.include_router(cross_merchant_router)
 app.include_router(reputation_router)
+app.include_router(feature_store_router)
 
 
 @app.get("/")

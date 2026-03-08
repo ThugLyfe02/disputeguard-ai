@@ -95,6 +95,7 @@ app.include_router(fraud_attack_router)
 app.include_router(fraud_soc_router)
 app.include_router(fraud_platform_router)
 app.include_router(fraud_graph_visualization_router)
+register_all_subscribers()
 
 
 # --------------------------------------------------

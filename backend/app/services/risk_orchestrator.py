@@ -1,79 +1,96 @@
-from datetime import datetime
+from app.services.fraud_signals import calculate_risk_score
+from app.services.device_risk import detect_device_risk
+from app.services.fraud_ml_prediction import predict_chargeback
+from app.services.reputation_service import get_reputation
+from app.services.fraud_graph_analysis import analyze_entity_cluster
+from app.services.global_intelligence import check_global_device_risk
 
 
 class RiskOrchestrator:
     """
-    Central fraud intelligence orchestrator.
+    Central fraud decision engine.
 
-    Coordinates multiple fraud detection engines
-    and aggregates their outputs into a unified risk profile.
-
-    Engines may include:
-
-    - rule based fraud signals
-    - device fingerprint intelligence
-    - ML chargeback prediction
-    - fraud graph cluster detection
-    - cross merchant intelligence
+    Combines multiple fraud intelligence systems into
+    a single unified risk evaluation.
     """
 
-    def __init__(self, engines):
-        self.engines = engines
+    def __init__(self, db):
+        self.db = db
 
-    def evaluate(self, context: dict):
+    def evaluate_transaction(self, transaction, device_hash, email=None):
         """
-        Runs all fraud engines and aggregates their outputs.
-
-        Parameters
-        ----------
-        context : dict
-            transaction context including device, merchant, user
-
-        Returns
-        -------
-        dict
-            unified fraud evaluation result
+        Run the full fraud intelligence stack.
         """
 
         results = {}
-        total_score = 0
-        weight_sum = 0
 
-        for engine in self.engines:
-            name = engine.__class__.__name__
+        # Rule Engine
+        rule_score = calculate_risk_score(
+            self.db,
+            transaction,
+            transaction.get("id")
+        )
 
-            try:
-                result = engine.evaluate(context)
+        results["rule_score"] = rule_score
 
-                results[name] = result
+        # Device Intelligence
+        device_result = detect_device_risk(self.db, device_hash)
 
-                if isinstance(result, dict) and "score" in result:
-                    weight = result.get("weight", 1)
-                    total_score += result["score"] * weight
-                    weight_sum += weight
+        results["device_risk"] = device_result
 
-            except Exception as e:
-                results[name] = {
-                    "status": "error",
-                    "error": str(e)
-                }
+        # Global Device Intelligence
+        global_device = check_global_device_risk(self.db, device_hash)
 
-        final_score = 0
-        if weight_sum > 0:
-            final_score = total_score / weight_sum
+        results["global_device_risk"] = global_device
 
-        risk_level = "low"
+        # Reputation System
+        if email:
+            reputation = get_reputation(self.db, "email", email)
+        else:
+            reputation = {"reputation_score": 0}
 
-        if final_score > 0.75:
-            risk_level = "critical"
-        elif final_score > 0.55:
-            risk_level = "high"
-        elif final_score > 0.35:
-            risk_level = "medium"
+        results["reputation"] = reputation
 
-        return {
-            "timestamp": datetime.utcnow().isoformat(),
-            "risk_score": round(final_score, 4),
-            "risk_level": risk_level,
-            "engine_results": results
-        }
+        # Graph Fraud Detection
+        cluster_result = analyze_entity_cluster(
+            self.db,
+            f"device_{device_hash}"
+        )
+
+        results["fraud_graph"] = cluster_result
+
+        # ML Prediction
+        ml_prediction = predict_chargeback(
+            transaction.get("amount"),
+            rule_score
+        )
+
+        results["ml_prediction"] = ml_prediction
+
+        # Final Risk Score Calculation
+        final_score = self._combine_scores(results)
+
+        results["final_risk_score"] = final_score
+
+        return results
+
+    def _combine_scores(self, signals):
+        """
+        Weighted risk scoring engine.
+        """
+
+        rule = signals["rule_score"]
+        device = signals["device_risk"]["usage_count"]
+        reputation = signals["reputation"]["reputation_score"]
+        graph = signals["fraud_graph"]["cluster_risk_score"]
+        ml = signals["ml_prediction"]["chargeback_probability"]
+
+        score = (
+            (rule * 0.25)
+            + (min(device / 10, 1) * 0.15)
+            + (graph * 0.20)
+            + (ml * 0.30)
+            + (reputation * 0.10)
+        )
+
+        return round(min(score, 1), 3)

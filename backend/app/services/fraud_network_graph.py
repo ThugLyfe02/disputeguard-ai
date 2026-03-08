@@ -87,6 +87,11 @@ def add_edge(node_a: str, node_b: str) -> None:
         Target node identifier (prefixed).
     """
 
+    # Avoid creating self-loops, which add noise for clustering/visualisation.
+    if node_a == node_b:
+        # Still honour the contract that nodes are created automatically.
+        add_node(node_a)
+        return
     _graph[node_a].add(node_b)
     _graph[node_b].add(node_a)
 

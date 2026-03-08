@@ -1,38 +1,69 @@
-import json
+import os
+import stripe
 import logging
+
+from fastapi import APIRouter, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.dependencies import get_db
+from app.services.event_processor import process_stripe_event
+from app.services.fraud_pipeline import run_fraud_pipeline
+from app.services.fraud_alerts import generate_alert
+
+
+router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-def webhook(request):
-    """
-    Handle incoming webhooks from the payment processor.
-    """
-    event = json.loads(request.body)
-    logger.info(f"Received event type: {event['type']}")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    # Extract metadata
-    merchant_id = event["data\"["object"]["metadata"]["merchant_id"]
 
-    # Process the event and get results
+@router.post("/stripe")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            sig_header,
+            STRIPE_WEBHOOK_SECRET
+        )
+    except stripe.error.SignatureVerificationError:
+        logger.error("Invalid Stripe webhook signature")
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+
+    event_type = event["type"]
+
+    logger.info(f"Stripe event detected: {event_type}")
+
+    # Extract merchant id from metadata
+    merchant_id = event["data"]["object"]["metadata"]["merchant_id"]
+
+    # Process event
     event_result = process_stripe_event(db, event, merchant_id)
 
-    # Extract the Stripe event object
     event_object = event["data"]["object"]
 
-    # If the event type matches predefined types, run fraud pipeline
-    if event["type"] in ("payment_intent.succeeded", "charge.dispute.created") and "transaction_id" in event_result:
-        fraud_result = run_fraud_pipeline(db, event_object, "device_hash_placeholder")
+    if event_type in ("payment_intent.succeeded", "charge.dispute.created") and "transaction_id" in event_result:
+
+        fraud_result = run_fraud_pipeline(
+            db,
+            event_object,
+            "device_hash_placeholder"
+        )
+
         alert = generate_alert(fraud_result)
 
         logger.info(f"Fraud pipeline result: {fraud_result}")
 
-        # Return detailed response for processed events
         return {
             "event_result": event_result,
             "fraud_analysis": fraud_result,
             "alert": alert
         }
 
-    # Log and return response for unhandled events
-    logger.info(f"Unhandled Stripe event type: {event['type']}")
+    logger.info(f"Unhandled Stripe event type: {event_type}")
+
     return {"status": "event_received", "event_result": event_result}

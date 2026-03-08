@@ -3,19 +3,26 @@ import React, { useState } from "react";
 import RiskChart from "../components/RiskChart";
 import DeviceTable from "../components/DeviceTable";
 import ClusterGraph from "../components/ClusterGraph";
+import FraudFeed from "../components/FraudFeed";
 
-import { scoreTransaction, fetchFraudNetwork } from "../api/fraudApi";
+import { scoreTransaction, getFraudNetwork } from "../api/fraudApi";
+
 
 export default function Dashboard() {
 
-  const [fraudResult, setFraudResult] = useState(null);
+  const [fraudData, setFraudData] = useState(null);
   const [networkData, setNetworkData] = useState(null);
 
   const [transactionInput, setTransactionInput] = useState({
     id: "tx_demo_1",
-    amount: 100,
-    device_hash: "device_demo_123"
+    amount: 120,
+    device_hash: "device_demo_abc"
   });
+
+
+  // --------------------------------------------------
+  // Run Fraud Analysis
+  // --------------------------------------------------
 
   async function runFraudCheck() {
 
@@ -29,31 +36,36 @@ export default function Dashboard() {
         device_hash: transactionInput.device_hash
       });
 
-      setFraudResult(result.fraud_analysis);
+      setFraudData(result.fraud_analysis);
 
-      const network = await fetchFraudNetwork(transactionInput.id);
+      // fetch network graph
+      const network = await getFraudNetwork(transactionInput.id);
 
       setNetworkData(network);
 
-    } catch (err) {
+    } catch (error) {
 
-      console.error("Fraud check failed", err);
+      console.error("Fraud analysis failed:", error);
 
     }
+
   }
+
 
   return (
 
-    <div style={{ padding: 30 }}>
+    <div style={{ padding: 40 }}>
 
       <h1>DisputeGuard AI</h1>
       <h2>Fraud Intelligence Dashboard</h2>
 
-      {/* ----------------------------- */}
-      {/* Transaction Input */}
-      {/* ----------------------------- */}
+      {/* ------------------------------------ */}
+      {/* Transaction Input Panel */}
+      {/* ------------------------------------ */}
 
-      <div style={{ marginBottom: 30 }}>
+      <div style={{ marginBottom: 40 }}>
+
+        <h3>Test Fraud Analysis</h3>
 
         <input
           placeholder="Transaction ID"
@@ -67,8 +79,8 @@ export default function Dashboard() {
         />
 
         <input
-          placeholder="Amount"
           type="number"
+          placeholder="Amount"
           value={transactionInput.amount}
           onChange={(e) =>
             setTransactionInput({
@@ -89,33 +101,40 @@ export default function Dashboard() {
           }
         />
 
-        <button onClick={runFraudCheck}>
+        <button
+          style={{ marginLeft: 10 }}
+          onClick={runFraudCheck}
+        >
           Run Fraud Analysis
         </button>
 
       </div>
 
-      {/* ----------------------------- */}
-      {/* Risk Score Chart */}
-      {/* ----------------------------- */}
 
-      {fraudResult && (
-        <div style={{ marginBottom: 40 }}>
+      {/* ------------------------------------ */}
+      {/* Fraud Risk Chart */}
+      {/* ------------------------------------ */}
+
+      {fraudData && (
+
+        <div style={{ marginBottom: 50 }}>
 
           <h3>Fraud Risk Breakdown</h3>
 
-          <RiskChart data={fraudResult.scores} />
+          <RiskChart scores={fraudData.scores} />
 
         </div>
+
       )}
 
-      {/* ----------------------------- */}
+
+      {/* ------------------------------------ */}
       {/* Device Intelligence */}
-      {/* ----------------------------- */}
+      {/* ------------------------------------ */}
 
-      {fraudResult && fraudResult.signals.device_risk && (
+      {fraudData && fraudData.signals && (
 
-        <div style={{ marginBottom: 40 }}>
+        <div style={{ marginBottom: 50 }}>
 
           <h3>Device Intelligence</h3>
 
@@ -123,10 +142,9 @@ export default function Dashboard() {
             devices={[
               {
                 device: transactionInput.device_hash,
-                reuse_score:
-                  fraudResult.scores.device_risk_score,
+                reuse_score: fraudData.scores.device_risk_score,
                 cluster_size:
-                  fraudResult.signals.graph_cluster?.cluster_size || 0
+                  fraudData.signals.graph_cluster?.cluster_size || 0
               }
             ]}
           />
@@ -135,13 +153,14 @@ export default function Dashboard() {
 
       )}
 
-      {/* ----------------------------- */}
+
+      {/* ------------------------------------ */}
       {/* Fraud Network Graph */}
-      {/* ----------------------------- */}
+      {/* ------------------------------------ */}
 
       {networkData && (
 
-        <div>
+        <div style={{ marginBottom: 50 }}>
 
           <h3>Fraud Network</h3>
 
@@ -154,6 +173,19 @@ export default function Dashboard() {
 
       )}
 
+
+      {/* ------------------------------------ */}
+      {/* Real-Time Fraud Feed */}
+      {/* ------------------------------------ */}
+
+      <div style={{ marginTop: 50 }}>
+
+        <FraudFeed />
+
+      </div>
+
     </div>
+
   );
+
 }

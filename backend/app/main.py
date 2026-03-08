@@ -22,6 +22,7 @@ from app.api.behavioral_biometrics import router as behavioral_router
 from app.api.fraud_stream import router as fraud_stream_router
 from app.api.fraud_network import router as fraud_network_router
 from app.api.fraud_models import router as fraud_models_router
+from app.api.fraud_investigator import router as fraud_investigator_router
 
 from app.database import engine
 from app.models.base import Base
@@ -57,6 +58,7 @@ app.include_router(behavioral_router)
 app.include_router(fraud_stream_router)
 app.include_router(fraud_network_router)
 app.include_router(fraud_models_router)
+app.include_router(fraud_investigator_router)
 
 
 @app.get("/")

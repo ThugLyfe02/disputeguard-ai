@@ -8,7 +8,19 @@ a structured fraud analysis result.
 
 Architecture:
 
-transaction → risk engines → reputation → feature store → alerts → event bus
+transaction
+    ↓
+fraud graph expansion
+    ↓
+risk engines
+    ↓
+reputation intelligence
+    ↓
+feature store
+    ↓
+alerts
+    ↓
+event bus + fraud stream
 """
 
 from sqlalchemy.orm import Session
@@ -36,7 +48,7 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     """
 
     # --------------------------------------------------
-    # Extract transaction attributes
+    # Extract Transaction Attributes
     # --------------------------------------------------
 
     transaction_id = transaction.get("id")
@@ -44,7 +56,17 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     amount = transaction.get("amount", 0)
 
     # --------------------------------------------------
-    # Build evaluation context
+    # Expand Fraud Intelligence Graph
+    # --------------------------------------------------
+
+    fraud_graph.build_graph_from_transaction(
+        transaction,
+        device_hash,
+        merchant_id
+    )
+
+    # --------------------------------------------------
+    # Build Evaluation Context
     # --------------------------------------------------
 
     context = {
@@ -69,16 +91,6 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
 
     engine_results = orchestrator_result.get("engines", {})
     engine_scores = orchestrator_result.get("scores", {})
-
-    # --------------------------------------------------
-    # Expand Fraud Intelligence Graph
-    # --------------------------------------------------
-
-    fraud_graph.build_graph_from_transaction(
-        transaction,
-        device_hash,
-        merchant_id
-    )
 
     # --------------------------------------------------
     # Convenience Aliases
@@ -132,12 +144,22 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     fraud_result = {
         "transaction_id": transaction_id,
         "merchant_id": merchant_id,
-        "rule_score": rule_score,
-        "device_risk": device_risk,
-        "graph_cluster": graph_cluster,
-        "cross_merchant": cross_merchant,
-        "reputation": reputation,
-        "ml_prediction": ml_prediction
+
+        "scores": {
+            "rule_score": rule_score,
+            "device_risk_score": device_risk_score,
+            "cluster_risk_score": cluster_risk_score,
+            "chargeback_probability": chargeback_probability,
+            "reputation_score": reputation_score
+        },
+
+        "signals": {
+            "device_risk": device_risk,
+            "graph_cluster": graph_cluster,
+            "cross_merchant": cross_merchant,
+            "reputation": reputation,
+            "ml_prediction": ml_prediction
+        }
     }
 
     # --------------------------------------------------
@@ -152,12 +174,21 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     # Publish Event to Event Bus
     # --------------------------------------------------
 
+    event_payload = {
+        "transaction_id": transaction_id,
+        "merchant_id": merchant_id,
+        "fraud_result": fraud_result
+    }
+
     event_bus.publish(
         "fraud.analysis.completed",
-        fraud_result
+        event_payload
     )
 
-    fraud_stream.publish("fraud_analysis_completed", fraud_result)
+    fraud_stream.publish(
+        "fraud_analysis_completed",
+        event_payload
+    )
 
     # --------------------------------------------------
     # Final Response

@@ -29,6 +29,7 @@ from app.api.fraud_simulator import router as fraud_simulator_router
 from app.api.fraud_dashboard import router as fraud_dashboard_router
 from app.api.threat_intelligence import router as threat_intelligence_router
 from app.api.fraud_cases import router as fraud_cases_router
+from app.api.fraud_policy import router as fraud_policy_router
 
 from app.database import engine
 from app.models.base import Base
@@ -71,6 +72,7 @@ app.include_router(fraud_simulator_router)
 app.include_router(fraud_dashboard_router)
 app.include_router(threat_intelligence_router)
 app.include_router(fraud_cases_router)
+app.include_router(fraud_policy_router)
 
 
 @app.get("/")

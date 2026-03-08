@@ -11,7 +11,7 @@ fraud graph expansion
     ↓
 temporal graph update
     ↓
-graph signal cache update
+graph signal worker trigger
     ↓
 risk engines
     ↓
@@ -35,7 +35,6 @@ from app.services.event_bus import event_bus
 from app.services.fraud_stream import fraud_stream
 from app.services.fraud_network_graph import fraud_graph
 from app.services.temporal_graph import temporal_graph
-from app.services.graph_signal_cache import graph_signal_cache
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine
@@ -51,7 +50,7 @@ from app.services.risk_orchestrator import RiskOrchestrator
 def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
 
     # --------------------------------------------------
-    # Event ID
+    # Event ID (Idempotency Protection)
     # --------------------------------------------------
 
     event_id = str(uuid.uuid4())
@@ -79,17 +78,20 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     )
 
     # --------------------------------------------------
-    # Temporal Graph Update
+    # Update Temporal Graph
     # --------------------------------------------------
 
     temporal_graph.add_edge(tx_node, device_node)
     temporal_graph.add_edge(tx_node, merchant_node)
 
     # --------------------------------------------------
-    # Graph Signal Cache Update
+    # Trigger Graph Signal Worker
     # --------------------------------------------------
 
-    graph_signal_cache.update(tx_node)
+    event_bus.publish(
+        "graph.node.updated",
+        {"node": tx_node}
+    )
 
     # --------------------------------------------------
     # Build evaluation context
@@ -209,7 +211,6 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     # --------------------------------------------------
 
     alert = generate_alert(fraud_result)
-
     fraud_result["alert"] = alert
 
     # --------------------------------------------------

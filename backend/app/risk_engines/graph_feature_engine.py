@@ -71,8 +71,23 @@ class GraphFeatureEngine(RiskEngine):
         # Graph Structural Features
         # --------------------------------------------------
 
-        device_degree = len(fraud_graph.get_neighbors(device_node))
-        merchant_degree = len(fraud_graph.get_neighbors(merchant_node))
+        device_degree = fraud_graph.node_degree(device_node)
+        merchant_degree = fraud_graph.node_degree(merchant_node)
+        tx_degree = fraud_graph.node_degree(tx_node)
+
+        # --------------------------------------------------
+        # Temporal Fraud Signals
+        # --------------------------------------------------
+
+        merchant_hopping = temporal_graph.merchant_hopping_velocity(
+            device_node, window_seconds=300
+        )
+
+        # --------------------------------------------------
+        # Cluster Density (from cache)
+        # --------------------------------------------------
+
+        density = signals.get("cluster_density", 0)
 
         # --------------------------------------------------
         # Feature Risk Score
@@ -80,12 +95,14 @@ class GraphFeatureEngine(RiskEngine):
 
         score = min(
 
-            (0.25 * device_reuse) +
-            (0.20 * cross_merchant) +
-            (0.20 * cluster_risk) +
+            (0.20 * device_reuse) +
+            (0.15 * cross_merchant) +
+            (0.15 * cluster_risk) +
             (0.15 * velocity) +
             (0.10 * propagated) +
-            (0.10 * min(cluster_size / 20, 1)),
+            (0.10 * min(cluster_size / 20, 1)) +
+            (0.10 * min(merchant_hopping / 5, 1)) +
+            (0.05 * density),
 
             1.0
         )
@@ -98,6 +115,9 @@ class GraphFeatureEngine(RiskEngine):
 
                 "device_degree": device_degree,
                 "merchant_degree": merchant_degree,
+                "tx_degree": tx_degree,
+                "merchant_hopping": merchant_hopping,
+                "cluster_density": density,
 
                 "device_reuse_signal": device_reuse,
                 "cross_merchant_signal": cross_merchant,

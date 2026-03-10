@@ -39,14 +39,13 @@ def register():
 
             * ``"transaction_id"`` (str)
             * ``"merchant_id"`` (str)
-            * ``"rule_score"`` (float)
-            * ``"reputation"`` (dict) with ``"reputation_score"`` (float)
-            * ``"graph_cluster"`` (dict) with ``"cluster_risk_score"`` (float)
-            * ``"ml_prediction"`` (dict) with:
+            * ``"fraud_result"`` (dict) containing:
 
-              - ``"chargeback_probability"`` (float)
-              - ``"features_used"`` (dict) with ``"amount"`` (float) and
-                ``"device_risk_score"`` (float)
+              - ``"scores"`` → ``"rule_score"`` (float)
+              - ``"signals"`` → ``"reputation"`` (dict) with ``"reputation_score"``
+              - ``"signals"`` → ``"graph_cluster"`` (dict) with ``"cluster_risk_score"``
+              - ``"signals"`` → ``"ml_prediction"`` (dict) with
+                ``"chargeback_probability"`` (float) and ``"features_used"``
         """
 
         transaction_id = fraud_result.get("transaction_id")

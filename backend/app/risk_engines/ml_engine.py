@@ -96,7 +96,13 @@ class MLEngine(RiskEngine):
             cluster_risk_score=cluster_risk_score,
         )
 
+        probability = float(result.get("chargeback_probability", 0.0))
+        confidence = float(result.get("prediction_confidence", 0.0))
+
+        # When the model has very little training data, reduce its influence.
+        score = probability * confidence if confidence < 0.3 else probability
+
         return {
-            "score": float(result.get("chargeback_probability", 0.0)),
+            "score": score,
             "details": result,
         }

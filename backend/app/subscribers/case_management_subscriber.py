@@ -41,8 +41,8 @@ def register():
 
             * ``"transaction_id"`` (str)
             * ``"merchant_id"`` (str)
-            * ``"ml_prediction"`` (dict) with a ``"chargeback_probability"``
-              (float) sub-key.
+            * ``"fraud_result"`` (dict) containing ``"signals"`` → ``"ml_prediction"``
+              (dict) with a ``"chargeback_probability"`` (float) sub-key.
         """
 
         transaction_id = fraud_result.get("transaction_id")

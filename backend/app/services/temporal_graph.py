@@ -24,6 +24,7 @@ Example:
     temporal_graph.add_edge("device_abc", "merchant_42")
 """
 
+import math
 from collections import defaultdict
 from datetime import datetime, timedelta
 import threading
@@ -45,6 +46,11 @@ class TemporalGraph:
         # thread safety
         self._lock = threading.RLock()
 
+        # Auto-prune counter
+        self._insert_count = 0
+        self._auto_prune_ttl = 7200  # 2 hours
+        self._auto_prune_interval = 1000
+
     # --------------------------------------------------
     # Add Temporal Edge
     # --------------------------------------------------
@@ -63,6 +69,10 @@ class TemporalGraph:
 
             self.node_index[node_a].add((node_a, node_b))
             self.node_index[node_b].add((node_b, node_a))
+
+            self._insert_count += 1
+            if self._insert_count % self._auto_prune_interval == 0:
+                self.prune_old_edges(self._auto_prune_ttl)
 
     # --------------------------------------------------
     # Recent Connections
@@ -128,6 +138,45 @@ class TemporalGraph:
         velocity = self.connection_velocity(node)
 
         return min(velocity / cap, 1.0)
+
+    # --------------------------------------------------
+    # Merchant Hopping Velocity
+    # --------------------------------------------------
+
+    def merchant_hopping_velocity(self, device_node: str, window_seconds: int = 300):
+        """
+        Count distinct merchants a device connected to within a time window.
+
+        This is a high-signal fraud indicator — legitimate devices rarely
+        transact at more than 1-2 merchants within 5 minutes.
+        """
+
+        recent = self.recent_connections(device_node, window_seconds)
+        merchants = {n for n in recent if n.startswith("merchant_")}
+        return len(merchants)
+
+    # --------------------------------------------------
+    # Edge Decay Weight
+    # --------------------------------------------------
+
+    def edge_decay_weight(self, node_a: str, node_b: str, decay_factor: float = 3600.0):
+        """
+        Compute time-decay weight for the most recent edge between two nodes.
+
+        Returns e^(-age / decay_factor) where age is seconds since the most
+        recent timestamp.  Newer edges return values closer to 1.0.
+        Returns 0.0 if no edge exists.
+        """
+
+        with self._lock:
+            timestamps = self.edges.get((node_a, node_b), [])
+
+        if not timestamps:
+            return 0.0
+
+        most_recent = max(timestamps)
+        age = datetime.utcnow().timestamp() - most_recent
+        return math.exp(-age / decay_factor)
 
     # --------------------------------------------------
     # Prune Old Data

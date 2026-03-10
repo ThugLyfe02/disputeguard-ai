@@ -45,6 +45,12 @@ class GraphSignalCache:
     # cache refresh TTL (seconds)
     CACHE_TTL = 30
 
+    # Maximum cached entries — prevents unbounded memory growth
+    MAX_CACHE_ENTRIES = 100_000
+
+    # Stale entry eviction age (seconds)
+    STALE_AGE = 300
+
     def __init__(self):
 
         # graph signals
@@ -54,12 +60,17 @@ class GraphSignalCache:
         self.velocity_score: Dict[str, float] = defaultdict(float)
         self.cluster_size: Dict[str, int] = defaultdict(int)
         self.propagated_risk: Dict[str, float] = defaultdict(float)
+        self.cluster_density: Dict[str, float] = defaultdict(float)
+        self.merchant_count: Dict[str, int] = defaultdict(int)
 
         # refresh timestamps
         self.last_update: Dict[str, float] = defaultdict(float)
 
         # thread safety
         self._lock = threading.RLock()
+
+        # Eviction counter
+        self._update_count = 0
 
     # --------------------------------------------------
     # Update Signals
@@ -146,7 +157,33 @@ class GraphSignalCache:
             for n in cluster:
                 self.cluster_size[n] = cluster_size
 
+            # --------------------------------------------------
+            # Cluster density signal
+            # --------------------------------------------------
+
+            density = fraud_graph.graph_density(cluster)
+
+            for n in cluster:
+                self.cluster_density[n] = density
+
+            # --------------------------------------------------
+            # Merchant count
+            # --------------------------------------------------
+
+            merchant_count = len(merchants)
+
+            for n in cluster:
+                self.merchant_count[n] = merchant_count
+
             self.last_update[node] = now
+
+            # --------------------------------------------------
+            # Periodic eviction
+            # --------------------------------------------------
+
+            self._update_count += 1
+            if self._update_count % 500 == 0:
+                self._evict_stale()
 
     # --------------------------------------------------
     # Accessors
@@ -170,6 +207,12 @@ class GraphSignalCache:
     def get_propagated_risk(self, node):
         return self.propagated_risk.get(node, 0)
 
+    def get_cluster_density(self, node):
+        return self.cluster_density.get(node, 0)
+
+    def get_merchant_count(self, node):
+        return self.merchant_count.get(node, 0)
+
     # --------------------------------------------------
     # Convenience aggregator
     # --------------------------------------------------
@@ -184,7 +227,42 @@ class GraphSignalCache:
             "velocity_score": self.get_velocity(node),
             "cluster_size": self.get_cluster_size(node),
             "propagated_risk": self.get_propagated_risk(node),
+            "cluster_density": self.get_cluster_density(node),
+            "merchant_count": self.get_merchant_count(node),
         }
+
+    # --------------------------------------------------
+    # Eviction
+    # --------------------------------------------------
+
+    def _evict_stale(self):
+        """Remove cache entries older than STALE_AGE seconds."""
+        now = time.time()
+        stale_nodes = [
+            node for node, ts in self.last_update.items()
+            if now - ts > self.STALE_AGE
+        ]
+        for node in stale_nodes:
+            self._remove_node(node)
+
+        # Also enforce hard cap — evict oldest if over MAX_CACHE_ENTRIES
+        if len(self.last_update) > self.MAX_CACHE_ENTRIES:
+            sorted_nodes = sorted(self.last_update, key=self.last_update.get)
+            evict_count = len(self.last_update) - self.MAX_CACHE_ENTRIES
+            for node in sorted_nodes[:evict_count]:
+                self._remove_node(node)
+
+    def _remove_node(self, node: str):
+        """Remove all cached signals for a single node."""
+        self.device_reuse.pop(node, None)
+        self.cross_merchant.pop(node, None)
+        self.cluster_risk.pop(node, None)
+        self.velocity_score.pop(node, None)
+        self.cluster_size.pop(node, None)
+        self.propagated_risk.pop(node, None)
+        self.cluster_density.pop(node, None)
+        self.merchant_count.pop(node, None)
+        self.last_update.pop(node, None)
 
 
 # Global singleton

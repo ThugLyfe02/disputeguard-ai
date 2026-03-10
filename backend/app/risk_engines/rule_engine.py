@@ -5,10 +5,9 @@ This engine delegates to :func:`app.services.fraud_signals.calculate_risk_score`
 to evaluate classic rule-based fraud signals such as unusually high transaction
 amounts and IP-to-billing-country mismatches.
 
-The returned score is an additive integer (e.g. 30 for a high-amount
-transaction, 25 for an IP mismatch), not normalised to ``[0, 1]``.
-Downstream aggregation (e.g. the ML engine or the orchestrator) is
-responsible for weighting or normalising the value as appropriate.
+The raw rule score is normalised to ``[0, 1]`` by dividing by 100 and
+clamping.  For example, a high-amount signal (30) plus an IP mismatch (25)
+yields a raw score of 55, which is returned as ``0.55``.
 
 Example::
 
@@ -16,7 +15,7 @@ Example::
 
     engine = RuleEngine()
     result = engine.evaluate(db, context)
-    # result == {"score": 55.0, "details": {"transaction_id": "txn_123"}}
+    # result == {"score": 0.55, "details": {"transaction_id": "txn_123"}}
 """
 
 from app.risk_engines.base_engine import RiskEngine
@@ -55,7 +54,7 @@ class RuleEngine(RiskEngine):
         Returns
         -------
         dict
-            * ``"score"`` (float) — additive rule score (e.g. 55.0).
+            * ``"score"`` (float) — normalised rule score in ``[0, 1]`` (e.g. 0.55).
             * ``"details"`` (dict) — ``{"transaction_id": str}`` for
               traceability.
         """

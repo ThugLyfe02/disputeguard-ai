@@ -108,11 +108,21 @@ class FraudNetworkGraph:
     DEVICE_REUSE_WEIGHT: float = 0.3
     CROSS_MERCHANT_WEIGHT: float = 0.2
 
+    # Maximum nodes to visit during cluster detection.  Prevents O(V+E)
+    # blowup when a shared device links tens of thousands of transactions.
+    MAX_CLUSTER_TRAVERSAL: int = 5000
+
+    # Graph pruning threshold — when node count exceeds this, old tx nodes
+    # not connected to disputes are pruned.
+    MAX_GRAPH_NODES: int = 500_000
+
     def __init__(self) -> None:
         # adjacency representation: node -> {connected_nodes}
         self.graph: defaultdict[str, set[str]] = defaultdict(set)
         # Reentrant lock guards all writes to self.graph
         self._lock = threading.RLock()
+        # Counter for periodic pruning
+        self._edge_count = 0
 
     # ------------------------------------------------------------------
     # Core graph operations
@@ -154,6 +164,9 @@ class FraudNetworkGraph:
             self.graph[node_a].add(node_b)
             self.graph[node_b].add(node_a)
             temporal_graph.add_edge(node_a, node_b)
+            self._edge_count += 1
+            if self._edge_count % 10_000 == 0:
+                self._auto_prune()
 
     def get_neighbors(self, node: str) -> list[str]:
         """
@@ -249,40 +262,44 @@ class FraudNetworkGraph:
     # Cluster detection
     # ------------------------------------------------------------------
 
-    def detect_cluster(self, start_node: str) -> list[str]:
+    def detect_cluster(
+        self, start_node: str, max_nodes: int | None = None,
+    ) -> list[str]:
         """
         Identify all nodes reachable from *start_node* (connected component).
 
-        Uses an iterative depth-first search so that very large graphs do not
-        cause Python recursion-limit errors.
-
-        This is the primary primitive for fraud ring detection: all entities
-        reachable from a known bad actor share the same connected component and
-        are therefore candidates for coordinated fraud.
+        Uses an iterative depth-first search with an optional traversal cap
+        to prevent O(V+E) blowup on large connected components.
 
         Parameters
         ----------
         start_node:
-            The node from which traversal begins, e.g. ``"tx_99"``.
+            The node from which traversal begins.
+        max_nodes:
+            Maximum nodes to visit.  Defaults to :attr:`MAX_CLUSTER_TRAVERSAL`.
+            When the limit is reached, traversal stops and a partial cluster
+            is returned.
 
         Returns
         -------
         list[str]
-            All node identifiers in the same connected component as
-            *start_node*, including *start_node* itself.  Returns an empty
-            list when *start_node* is not present in the graph.
+            Node identifiers in the connected component (possibly partial
+            if capped).  Returns an empty list when *start_node* is absent.
         """
         if start_node not in self.graph:
             return []
+
+        limit = max_nodes if max_nodes is not None else self.MAX_CLUSTER_TRAVERSAL
 
         visited: set[str] = set()
         stack: list[str] = [start_node]
 
         while stack:
+            if len(visited) >= limit:
+                break
             node = stack.pop()
             if node not in visited:
                 visited.add(node)
-                # Only enqueue unvisited neighbours
                 stack.extend(self.graph[node] - visited)
 
         return list(visited)
@@ -467,6 +484,80 @@ class FraudNetworkGraph:
                     seen.add(node)
 
         return result
+
+    # ------------------------------------------------------------------
+    # Graph metrics
+    # ------------------------------------------------------------------
+
+    def node_degree(self, node: str) -> int:
+        """Return the number of edges connected to *node*."""
+        return len(self.graph.get(node, set()))
+
+    def graph_density(self, cluster: list[str]) -> float:
+        """
+        Compute edge density for a cluster.
+
+        density = 2E / (N * (N - 1))
+
+        High density indicates tightly connected entities — a strong
+        fraud ring signal.  Returns 0.0 for clusters with fewer than 2 nodes.
+        """
+        n = len(cluster)
+        if n < 2:
+            return 0.0
+
+        cluster_set = set(cluster)
+        edge_count = 0
+        for node in cluster:
+            for neighbor in self.graph.get(node, set()):
+                if neighbor in cluster_set:
+                    edge_count += 1
+        # Each edge counted twice (undirected)
+        edge_count //= 2
+
+        max_edges = n * (n - 1) / 2
+        return round(edge_count / max_edges, 4)
+
+    def node_count(self) -> int:
+        """Return total number of nodes in the graph."""
+        return len(self.graph)
+
+    # ------------------------------------------------------------------
+    # Graph pruning
+    # ------------------------------------------------------------------
+
+    def _auto_prune(self) -> None:
+        """
+        Remove old transaction nodes when graph exceeds MAX_GRAPH_NODES.
+
+        Only removes tx_* nodes not connected to any dispute node.
+        Device, merchant, email, and dispute nodes are preserved as they
+        carry long-term fraud intelligence.
+        """
+        if len(self.graph) <= self.MAX_GRAPH_NODES:
+            return
+
+        # Collect tx nodes not connected to disputes
+        removable = []
+        for node in list(self.graph.keys()):
+            if not node.startswith("tx_"):
+                continue
+            neighbors = self.graph.get(node, set())
+            has_dispute = any(n.startswith("dispute_") for n in neighbors)
+            if not has_dispute:
+                removable.append(node)
+
+        # Remove oldest first (by insertion order in defaultdict)
+        # Remove up to 10% of graph to avoid excessive single-pass pruning
+        remove_count = min(len(removable), len(self.graph) // 10)
+        for node in removable[:remove_count]:
+            self._remove_node(node)
+
+    def _remove_node(self, node: str) -> None:
+        """Remove a node and all its edges from the graph."""
+        neighbors = self.graph.pop(node, set())
+        for neighbor in neighbors:
+            self.graph[neighbor].discard(node)
 
 
 # ---------------------------------------------------------------------------

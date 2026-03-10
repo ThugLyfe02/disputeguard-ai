@@ -37,7 +37,6 @@ from app.services.event_bus import event_bus
 from app.services.fraud_stream import fraud_stream
 
 from app.services.fraud_network_graph import fraud_graph
-from app.services.temporal_graph import temporal_graph
 
 from app.risk_engines.rule_engine import RuleEngine
 from app.risk_engines.device_engine import DeviceEngine

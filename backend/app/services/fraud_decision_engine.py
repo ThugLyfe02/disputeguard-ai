@@ -72,13 +72,25 @@ class FraudDecisionEngine:
     def _combine_scores(self, pipeline, reputation, graph):
         """
         Combine multiple intelligence sources into a unified score.
+
+        The pipeline result structure is:
+        {
+            "fraud_analysis": {
+                "scores": {"rule_score", "device_risk_score", "chargeback_probability", ...},
+                "signals": {"device_risk", "ml_prediction", ...}
+            },
+            "orchestrator": {"final_risk_score", "scores", "engines"}
+        }
         """
 
-        rule_score = pipeline["rule_score"]
-        device_risk = pipeline["device_risk"]["usage_count"]
-        ml_prob = pipeline["ml_prediction"]["chargeback_probability"]
+        fraud_analysis = pipeline.get("fraud_analysis", {})
+        scores = fraud_analysis.get("scores", {})
+
+        rule_score = scores.get("rule_score", 0)
+        device_risk = scores.get("device_risk_score", 0)
+        ml_prob = scores.get("chargeback_probability", 0)
         reputation_score = reputation.get("reputation_score", 0)
-        cluster_score = graph["cluster_risk_score"]
+        cluster_score = graph.get("cluster_risk_score", 0)
 
         combined = (
             rule_score * 0.25 +

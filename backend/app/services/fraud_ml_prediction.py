@@ -52,7 +52,7 @@ def predict_chargeback(
         "cluster_risk_score": cluster_risk_score
     }
 
-    probability = model.predict(features)
+    probability, confidence = model.predict(features)
 
     # Risk classification
     if probability > 0.8:
@@ -64,6 +64,7 @@ def predict_chargeback(
 
     return {
         "chargeback_probability": round(probability, 4),
+        "prediction_confidence": round(confidence, 4),
         "risk_level": risk_level,
         "features_used": features
     }

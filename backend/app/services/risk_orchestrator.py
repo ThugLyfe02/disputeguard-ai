@@ -45,9 +45,12 @@ Typical usage::
     # }
 """
 
+import logging
 from typing import List
 
 from app.risk_engines.base_engine import RiskEngine
+
+logger = logging.getLogger("disputeguard.orchestrator")
 
 
 class RiskOrchestrator:
@@ -129,9 +132,20 @@ class RiskOrchestrator:
         running_context["scores"] = scores
 
         for engine in self.engines:
-            result = engine.evaluate(db, running_context)
-            engines_output[engine.name] = result
-            scores[engine.name] = result.get("score", 0.0)
+            try:
+                result = engine.evaluate(db, running_context)
+                engines_output[engine.name] = result
+                scores[engine.name] = result.get("score", 0.0)
+            except Exception:
+                logger.exception(
+                    "Engine '%s' failed — using fallback score 0.5",
+                    engine.name,
+                )
+                engines_output[engine.name] = {
+                    "score": 0.5,
+                    "details": {"error": "engine_failed"},
+                }
+                scores[engine.name] = 0.5
 
         # Guard against an empty engine list: return 0.0 rather than raising
         # ZeroDivisionError.  Callers should always supply at least one engine.

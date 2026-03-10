@@ -39,6 +39,9 @@ class TemporalGraph:
         # (node_a, node_b) -> [timestamps]
         self.edges = defaultdict(list)
 
+        # node -> set of edge keys for O(degree) lookups
+        self.node_index = defaultdict(set)
+
         # thread safety
         self._lock = threading.RLock()
 
@@ -58,6 +61,9 @@ class TemporalGraph:
             self.edges[(node_a, node_b)].append(timestamp)
             self.edges[(node_b, node_a)].append(timestamp)
 
+            self.node_index[node_a].add((node_a, node_b))
+            self.node_index[node_b].add((node_b, node_a))
+
     # --------------------------------------------------
     # Recent Connections
     # --------------------------------------------------
@@ -73,12 +79,10 @@ class TemporalGraph:
 
         with self._lock:
 
-            for (a, b), timestamps in self.edges.items():
-
-                if a == node:
-
-                    if any(now - t <= window_seconds for t in timestamps):
-                        neighbors.append(b)
+            for key in self.node_index.get(node, set()):
+                timestamps = self.edges.get(key, [])
+                if any(now - t <= window_seconds for t in timestamps):
+                    neighbors.append(key[1])
 
         return neighbors
 
@@ -149,6 +153,9 @@ class TemporalGraph:
                     self.edges[key] = filtered
                 else:
                     del self.edges[key]
+                    a, b = key
+                    self.node_index[a].discard(key)
+                    self.node_index[b].discard((b, a))
 
     # --------------------------------------------------
     # Observability

@@ -84,9 +84,8 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
     # --------------------------------------------------
     # Temporal Graph Update
     # --------------------------------------------------
-
-    temporal_graph.add_edge(tx_node, device_node)
-    temporal_graph.add_edge(tx_node, merchant_node)
+    # Temporal edges are recorded by fraud_graph.add_edge() inside
+    # build_graph_from_transaction().  No explicit call needed here.
 
     # --------------------------------------------------
     # Trigger Graph Signal Worker

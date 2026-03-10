@@ -51,18 +51,22 @@ def register():
 
         transaction_id = fraud_result.get("transaction_id")
         merchant_id = fraud_result.get("merchant_id")
-        rule_score = fraud_result.get("rule_score", 0.0)
+        inner = fraud_result.get("fraud_result", {})
+        scores = inner.get("scores", {})
+        signals = inner.get("signals", {})
 
-        ml_prediction = fraud_result.get("ml_prediction", {})
+        rule_score = scores.get("rule_score", 0.0)
+
+        ml_prediction = signals.get("ml_prediction", {})
         chargeback_probability = ml_prediction.get("chargeback_probability", 0.0)
         features_used = ml_prediction.get("features_used", {})
         amount = features_used.get("amount", 0.0)
         device_risk_score = features_used.get("device_risk_score", 0.0)
 
-        reputation = fraud_result.get("reputation", {})
+        reputation = signals.get("reputation", {})
         reputation_score = reputation.get("reputation_score", 0.0)
 
-        graph_cluster = fraud_result.get("graph_cluster", {})
+        graph_cluster = signals.get("graph_cluster", {})
         cluster_risk_score = graph_cluster.get("cluster_risk_score", 0.0)
 
         logger.info(

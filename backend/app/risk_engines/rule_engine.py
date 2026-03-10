@@ -65,7 +65,7 @@ class RuleEngine(RiskEngine):
         score = calculate_risk_score(db, transaction, transaction_id)
 
         return {
-            "score": float(score),
+            "score": min(float(score) / 100.0, 1.0),
             "details": {
                 "transaction_id": transaction_id,
             },

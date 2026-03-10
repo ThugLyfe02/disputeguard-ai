@@ -25,7 +25,10 @@ def build_training_dataset(db):
 
         dataset.append({
             "amount": tx.amount,
-            "signal_count": signal_count,
+            "rule_score": 0,
+            "device_risk_score": 0,
+            "reputation_score": 0,
+            "cluster_risk_score": 0,
             "label": label
         })
 

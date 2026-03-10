@@ -15,7 +15,7 @@ Architecture Benefits
 • Easy migration to Kafka / Redis Streams
 """
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from datetime import datetime
 from threading import RLock
 import uuid
@@ -30,6 +30,7 @@ class EventBus:
     """
 
     MAX_HISTORY = 1000
+    MAX_IDEMPOTENCY_KEYS = 50000
 
     def __init__(self):
 
@@ -39,8 +40,8 @@ class EventBus:
         # observability history
         self.event_history = []
 
-        # idempotency protection
-        self.processed_event_ids = set()
+        # idempotency protection (bounded FIFO)
+        self.processed_event_ids = OrderedDict()
 
         # thread safety
         self.lock = RLock()
@@ -91,7 +92,9 @@ class EventBus:
                     "event_id": event_id
                 }
 
-            self.processed_event_ids.add(event_id)
+            self.processed_event_ids[event_id] = True
+            if len(self.processed_event_ids) > self.MAX_IDEMPOTENCY_KEYS:
+                self.processed_event_ids.popitem(last=False)
 
         event = {
             "event_id": event_id,

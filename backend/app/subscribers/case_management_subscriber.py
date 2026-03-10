@@ -47,7 +47,8 @@ def register():
 
         transaction_id = fraud_result.get("transaction_id")
         merchant_id = fraud_result.get("merchant_id")
-        ml_prediction = fraud_result.get("ml_prediction", {})
+        inner = fraud_result.get("fraud_result", {})
+        ml_prediction = inner.get("signals", {}).get("ml_prediction", {})
         chargeback_probability = ml_prediction.get("chargeback_probability", 0.0)
 
         if chargeback_probability > CHARGEBACK_CASE_THRESHOLD:

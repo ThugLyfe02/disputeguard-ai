@@ -264,7 +264,7 @@ class FraudNetworkGraph:
 
     def detect_cluster(
         self, start_node: str, max_nodes: int | None = None,
-    ) -> list[str]:
+    ) -> dict:
         """
         Identify all nodes reachable from *start_node* (connected component).
 
@@ -282,27 +282,30 @@ class FraudNetworkGraph:
 
         Returns
         -------
-        list[str]
-            Node identifiers in the connected component (possibly partial
-            if capped).  Returns an empty list when *start_node* is absent.
+        dict
+            ``{"nodes": [...], "cluster_capped": bool}``
+            Returns ``{"nodes": [], "cluster_capped": False}`` when
+            *start_node* is absent.
         """
         if start_node not in self.graph:
-            return []
+            return {"nodes": [], "cluster_capped": False}
 
         limit = max_nodes if max_nodes is not None else self.MAX_CLUSTER_TRAVERSAL
 
         visited: set[str] = set()
         stack: list[str] = [start_node]
+        capped = False
 
         while stack:
             if len(visited) >= limit:
+                capped = True
                 break
             node = stack.pop()
             if node not in visited:
                 visited.add(node)
                 stack.extend(self.graph[node] - visited)
 
-        return list(visited)
+        return {"nodes": list(visited), "cluster_capped": capped}
 
     # ------------------------------------------------------------------
     # Risk computation
@@ -553,6 +556,57 @@ class FraudNetworkGraph:
         for node in removable[:remove_count]:
             self._remove_node(node)
 
+    def prune_old_nodes(self, days: int = 90) -> dict:
+        """
+        Scheduled pruning: remove stale nodes from the graph.
+
+        Removes:
+        - Nodes with no edges (orphans)
+        - tx_ nodes older than *days* (uses temporal_graph timestamps)
+        - Cleans up orphaned edges left behind
+
+        This is NOT called automatically. Invoke via a maintenance
+        endpoint or scheduled job.
+
+        Returns
+        -------
+        dict
+            ``{"removed": int, "remaining": int}``
+        """
+        import time as _time
+
+        cutoff = _time.time() - (days * 86400)
+        removed = 0
+
+        with self._lock:
+            # Pass 1: remove orphan nodes (no edges)
+            orphans = [n for n, neighbors in self.graph.items() if not neighbors]
+            for node in orphans:
+                del self.graph[node]
+                removed += 1
+
+            # Pass 2: remove old tx_ nodes using temporal graph timestamps
+            for node in list(self.graph.keys()):
+                if not node.startswith("tx_"):
+                    continue
+                # Check if any edge involving this node has a recent timestamp
+                edge_keys = temporal_graph.node_index.get(node, set())
+                if not edge_keys:
+                    # No temporal data — consider stale
+                    self._remove_node(node)
+                    removed += 1
+                    continue
+                most_recent = 0.0
+                for key in edge_keys:
+                    timestamps = temporal_graph.edges.get(key, [])
+                    if timestamps:
+                        most_recent = max(most_recent, max(timestamps))
+                if most_recent < cutoff:
+                    self._remove_node(node)
+                    removed += 1
+
+        return {"removed": removed, "remaining": len(self.graph)}
+
     def _remove_node(self, node: str) -> None:
         """Remove a node and all its edges from the graph."""
         neighbors = self.graph.pop(node, set())
@@ -598,7 +652,7 @@ def build_graph_from_transaction(
     fraud_graph.build_graph_from_transaction(transaction, device_hash, merchant_id)
 
 
-def detect_cluster(start_node: str) -> list[str]:
+def detect_cluster(start_node: str) -> dict:
     """Detect a cluster in the global :data:`fraud_graph`. See :meth:`FraudNetworkGraph.detect_cluster`."""
     return fraud_graph.detect_cluster(start_node)
 

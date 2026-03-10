@@ -1,3 +1,6 @@
+import logging
+import sys
+
 from fastapi import FastAPI
 
 from app.api.webhooks import router as webhook_router
@@ -50,6 +53,18 @@ from app.models.base import Base
 
 
 app = FastAPI(title="DisputeGuard AI")
+
+
+# --------------------------------------------------
+# Structured Logging
+# --------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("disputeguard")
 
 
 # --------------------------------------------------
@@ -126,3 +141,38 @@ def startup_event():
 @app.get("/")
 def root():
     return {"status": "DisputeGuard AI backend running"}
+
+
+# --------------------------------------------------
+# Production Health Probes
+# --------------------------------------------------
+
+@app.get("/health")
+def health_check():
+    """Liveness probe — returns 200 if the process is alive."""
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+def readiness_check():
+    """Readiness probe — returns 200 when the service can accept traffic."""
+    return {"status": "ok"}
+
+
+# --------------------------------------------------
+# Maintenance Endpoints
+# --------------------------------------------------
+
+@app.post("/maintenance/prune_graph")
+def maintenance_prune_graph(days: int = 90):
+    """
+    Scheduled graph pruning.
+
+    Removes orphan nodes and transaction nodes older than *days*.
+    Call from a cron job or admin panel — NOT from real-time traffic.
+    """
+    from app.services.fraud_network_graph import fraud_graph
+
+    result = fraud_graph.prune_old_nodes(days=days)
+    logger.info("Graph pruning completed: %s", result)
+    return result

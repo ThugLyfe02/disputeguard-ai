@@ -32,7 +32,8 @@ class NetworkEngine(RiskEngine):
         # Detect cluster in fraud graph
         # -------------------------------------
 
-        cluster = fraud_graph.detect_cluster(tx_id)
+        cluster_result = fraud_graph.detect_cluster(tx_id)
+        cluster = cluster_result["nodes"]
 
         cluster_size = len(cluster)
 

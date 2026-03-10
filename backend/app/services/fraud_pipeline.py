@@ -211,7 +211,11 @@ def run_fraud_pipeline(db: Session, transaction: dict, device_hash: str):
             "graph_features": graph_features,
             "reputation": reputation,
             "ml_prediction": ml_prediction
-        }
+        },
+
+        "final_risk_score": orchestrator_result.get("final_risk_score", 0),
+
+        "pipeline_timing": orchestrator_result.get("pipeline_timing", {}),
     }
 
     # --------------------------------------------------

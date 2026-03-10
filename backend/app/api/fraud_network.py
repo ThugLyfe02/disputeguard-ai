@@ -89,7 +89,8 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
             "status": "entity_not_found"
         }
 
-    cluster = detect_cluster(entity)
+    cluster_result = detect_cluster(entity)
+    cluster = cluster_result["nodes"]
     risk_score = calculate_network_risk(cluster)
 
     nodes = []
@@ -118,6 +119,7 @@ def fraud_network_entity(entity: str, db: Session = Depends(get_db)):
     return {
         "entity": entity,
         "cluster_size": len(cluster),
+        "cluster_capped": cluster_result["cluster_capped"],
         "network_risk_score": risk_score,
         "cluster_density": round(density, 4),
         "nodes": nodes,
@@ -151,7 +153,8 @@ def fraud_ring_detection(entity: str, db: Session = Depends(get_db)):
             "reason": "entity_not_found"
         }
 
-    cluster = detect_cluster(entity)
+    cluster_result = detect_cluster(entity)
+    cluster = cluster_result["nodes"]
     risk_score = calculate_network_risk(cluster)
 
     cluster_size = len(cluster)
@@ -187,6 +190,7 @@ def fraud_ring_detection(entity: str, db: Session = Depends(get_db)):
         "entity": entity,
         "cluster_entities": cluster,
         "cluster_size": cluster_size,
+        "cluster_capped": cluster_result["cluster_capped"],
         "network_risk_score": risk_score,
         "cluster_density": round(density, 4),
         "fraud_ring_detected": ring_detected

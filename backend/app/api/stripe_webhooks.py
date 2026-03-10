@@ -1,7 +1,10 @@
+import logging
 import stripe
 import os
 
 from fastapi import APIRouter, Request
+
+logger = logging.getLogger("disputeguard.stripe")
 
 router = APIRouter(prefix="/stripe", tags=["billing"])
 
@@ -27,6 +30,6 @@ async def stripe_webhook(request: Request):
         merchant_id = session["metadata"]["merchant_id"]
 
         # activate subscription in your DB
-        print("Activate merchant:", merchant_id)
+        logger.info("Activate merchant: %s", merchant_id)
 
     return {"status": "ok"}

@@ -130,12 +130,15 @@ class TemporalGraph:
     # Temporal Risk Signal
     # --------------------------------------------------
 
-    def velocity_signal(self, node: str, cap: int = 20):
+    def velocity_signal(self, node: str, window_seconds: int = 120, cap: int = 10):
         """
-        Normalize velocity into a risk signal.
+        Return normalized velocity signal in [0, 1].
+
+        Based on recent connection count within *window_seconds*,
+        divided by *cap* and clamped to 1.0.
         """
 
-        velocity = self.connection_velocity(node)
+        velocity = self.connection_velocity(node, window_seconds)
 
         return min(velocity / cap, 1.0)
 

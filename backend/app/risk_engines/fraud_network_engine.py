@@ -63,7 +63,8 @@ class FraudNetworkEngine(RiskEngine):
 
         if cluster_size == 0:
 
-            cluster = fraud_graph.detect_cluster(tx_node)
+            cluster_result = fraud_graph.detect_cluster(tx_node)
+            cluster = cluster_result["nodes"]
 
             if not cluster:
                 return {
@@ -76,7 +77,8 @@ class FraudNetworkEngine(RiskEngine):
 
         else:
 
-            cluster = fraud_graph.detect_cluster(tx_node)
+            cluster_result = fraud_graph.detect_cluster(tx_node)
+            cluster = cluster_result["nodes"]
 
         # --------------------------------------------------
         # Risk Propagation

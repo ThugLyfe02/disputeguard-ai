@@ -15,11 +15,14 @@ Architecture Benefits
 • Easy migration to Kafka / Redis Streams
 """
 
+import logging
 from collections import defaultdict, OrderedDict
 from datetime import datetime
 from threading import RLock
 import uuid
 import traceback
+
+logger = logging.getLogger("disputeguard.event_bus")
 
 
 class EventBus:
@@ -120,6 +123,12 @@ class EventBus:
                 })
 
             except Exception as e:
+
+                logger.exception(
+                    "Handler '%s' failed for event '%s'",
+                    handler.__name__,
+                    event_type,
+                )
 
                 results.append({
                     "handler": handler.__name__,

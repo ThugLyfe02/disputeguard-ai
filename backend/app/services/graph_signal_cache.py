@@ -33,17 +33,24 @@ cached signals available to engines
 
 from collections import defaultdict
 from typing import Dict
+import logging
 import threading
 import time
 
 from app.services.fraud_network_graph import fraud_graph
 from app.services.temporal_graph import temporal_graph
 
+logger = logging.getLogger("disputeguard.graph_signal_cache")
+
 
 class GraphSignalCache:
 
     # cache refresh TTL (seconds)
     CACHE_TTL = 30
+
+    # Refresh-ahead threshold: trigger background refresh when this
+    # fraction of the TTL has elapsed (0.8 = 80%).
+    REFRESH_AHEAD_RATIO = 0.80
 
     # Maximum cached entries — prevents unbounded memory growth
     MAX_CACHE_ENTRIES = 100_000
@@ -72,6 +79,10 @@ class GraphSignalCache:
         # Eviction counter
         self._update_count = 0
 
+        # Track nodes with pending background refreshes to avoid spawning
+        # duplicate threads for the same node.
+        self._refreshing: set = set()
+
     # --------------------------------------------------
     # Update Signals
     # --------------------------------------------------
@@ -88,7 +99,8 @@ class GraphSignalCache:
             if now - self.last_update[node] < self.CACHE_TTL:
                 return
 
-            cluster = fraud_graph.detect_cluster(node)
+            cluster_result = fraud_graph.detect_cluster(node)
+            cluster = cluster_result["nodes"]
 
             if not cluster:
                 return
@@ -219,6 +231,10 @@ class GraphSignalCache:
 
     def get_signals(self, node: str):
 
+        # Refresh-ahead: if cache entry exists but > 80% of TTL has elapsed,
+        # schedule a background refresh so the next read gets fresh data.
+        self._maybe_refresh_ahead(node)
+
         return {
 
             "device_reuse_score": self.get_device_reuse(node),
@@ -230,6 +246,32 @@ class GraphSignalCache:
             "cluster_density": self.get_cluster_density(node),
             "merchant_count": self.get_merchant_count(node),
         }
+
+    def _maybe_refresh_ahead(self, node: str):
+        """Trigger background cache refresh when TTL is > 80% expired."""
+        with self._lock:
+            last = self.last_update.get(node, 0)
+            if last == 0:
+                return  # No cached entry — nothing to refresh ahead
+            age = time.time() - last
+            if age < self.CACHE_TTL * self.REFRESH_AHEAD_RATIO:
+                return  # Still fresh enough
+            if node in self._refreshing:
+                return  # Already refreshing
+
+            self._refreshing.add(node)
+
+        def _background_refresh():
+            try:
+                self.update(node)
+            except Exception:
+                logger.exception("Background refresh failed for node %s", node)
+            finally:
+                with self._lock:
+                    self._refreshing.discard(node)
+
+        t = threading.Thread(target=_background_refresh, daemon=True)
+        t.start()
 
     # --------------------------------------------------
     # Eviction
